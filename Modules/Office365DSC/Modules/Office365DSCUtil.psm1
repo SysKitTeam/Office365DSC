@@ -1017,8 +1017,8 @@ function Get-AllTeamsCached
     try
     {
         $requestUri = [Uri]::new("$endpoint/v1.0/groups?$filter=groupTypes/any(c:c+eq+'Unified')&`$select=id,resourceProvisioningOptions,displayName,description,visibility,mailnickname,classification")
-        Invoke-WithRetry -ScriptBlock {
-
+        Invoke-With429Retry -ScriptBlock {
+            $accessToken = Get-AppIdentityAccessToken $endpoint
             $httpClient.DefaultRequestHeaders.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::Parse("Bearer $accessToken");
             $allTeams.AddRange([Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities].GetMethod("GetAll").MakeGenericMethod([Microsoft.TeamsCmdlets.PowerShell.Custom.Model.Team]).Invoke($null, @($httpClient, $requestUri)))
             Write-Information "Retrieved all teams"
@@ -1035,8 +1035,8 @@ function Get-AllTeamsCached
             {
                 $singleTeamClient = [Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities]::GetClient("Bearer $accessToken", "Get-TeamTraceCustom")
                 $teamToRetrieve = $_
-                Invoke-WithRetry -ScriptBlock {
-                    # $accessToken = Get-AppIdentityAccessToken $endpoint
+                Invoke-With429Retry -ScriptBlock {
+                    $accessToken = Get-AppIdentityAccessToken $endpoint
                     Write-Information "got single item access token"
                     $singleTeamClient.DefaultRequestHeaders.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::Parse("Bearer $accessToken")
                     $groupId= $teamToRetrieve.GroupId
@@ -1079,7 +1079,7 @@ function Get-AllTeamsCached
 }
 
 
-function Invoke-WithRetry
+function Invoke-With429Retry
 {
     [CmdletBinding()]
     param
@@ -1098,8 +1098,6 @@ function Invoke-WithRetry
     $backoffPeriodMiliseconds = 500
     do
     {
-
-        # Write-Information "Trying to execute ScriptBlock, retry count: $retryCount"
         try
         {
             Invoke-Command $ScriptBlock
@@ -1112,7 +1110,7 @@ function Invoke-WithRetry
                 throw
             }
 
-            Write-Information "The request has been throttled, will retry, retryCount: $retryCount"
+            Write-Verbose "The request has been throttled, will retry, retryCount: $retryCount"
         }
         Start-Sleep -Milliseconds $backoffPeriodMiliseconds
         $retryCount = $retryCount - 1
