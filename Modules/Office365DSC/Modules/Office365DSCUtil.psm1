@@ -992,9 +992,12 @@ function Get-AllTeamsCached
     [CmdletBinding()]
     param
     (
+        [Parameter()]
+        [Switch]
+        $ForceRefresh
     )
 
-    if($Global:O365TeamsCached)
+    if($Global:O365TeamsCached -and !$ForceRefresh)
     {
         return $Global:O365TeamsCached
     }
@@ -1071,7 +1074,8 @@ function Get-AllTeamsCached
         $httpClient.Dispose()
     }
 
-    return $allTeamSettings
+    $Global:O365TeamsCached = $allTeamSettings
+    return $Global:O365TeamsCached
 }
 
 
