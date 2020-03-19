@@ -187,7 +187,7 @@ function Get-TargetResource
         }
 
         $Owners = [System.Collections.ArrayList]:: new()
-        Invoke-With429Retry -ScriptBlock {
+        Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
             $Owners.AddRange([array](Get-TeamUser -GroupId $team.GroupId -Role Owner))
         }
 

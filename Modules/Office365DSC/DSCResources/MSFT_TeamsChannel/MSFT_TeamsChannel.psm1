@@ -287,7 +287,7 @@ function Export-TargetResource
     foreach ($team in $Teams)
     {
         $channels = [System.Collections.ArrayList]:: new()
-        Invoke-With429Retry -ScriptBlock {
+        Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
             $channels.AddRange([array](Get-TeamChannel -GroupId $team.GroupId))
         }
         $i = 1

@@ -313,7 +313,7 @@ function Export-TargetResource
                         try
                         {
                             $users = [System.Collections.ArrayList]:: new()
-                            Invoke-With429Retry -ScriptBlock {
+                            Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
                                 $users.AddRange([array](Get-TeamUser -GroupId $team.GroupId))
                             }
 

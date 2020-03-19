@@ -1017,7 +1017,7 @@ function Get-AllTeamsCached
     try
     {
         $requestUri = [Uri]::new("$endpoint/v1.0/groups?$filter=groupTypes/any(c:c+eq+'Unified')&`$select=id,resourceProvisioningOptions,displayName,description,visibility,mailnickname,classification")
-        Invoke-With429Retry -ScriptBlock {
+        Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
             $accessToken = Get-AppIdentityAccessToken $endpoint
             $httpClient.DefaultRequestHeaders.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::Parse("Bearer $accessToken");
             $allTeams.AddRange([Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities].GetMethod("GetAll").MakeGenericMethod([Microsoft.TeamsCmdlets.PowerShell.Custom.Model.Team]).Invoke($null, @($httpClient, $requestUri)))
@@ -1034,7 +1034,7 @@ function Get-AllTeamsCached
             {
                 $singleTeamClient = [Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities]::GetClient("Bearer $accessToken", "Get-TeamTraceCustom")
                 $teamToRetrieve = $_
-                Invoke-With429Retry -ScriptBlock {
+                Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
                     $accessToken = Get-AppIdentityAccessToken $endpoint
                     $singleTeamClient.DefaultRequestHeaders.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::Parse("Bearer $accessToken")
                     $groupId= $teamToRetrieve.GroupId
@@ -1067,7 +1067,7 @@ function Get-AllTeamsCached
 }
 
 
-function Invoke-With429Retry
+function Invoke-WithTransientErrorExponentialRetry
 {
     [CmdletBinding()]
     param
@@ -1088,12 +1088,13 @@ function Invoke-With429Retry
     {
         try
         {
+            Write-Verbose "Executing script block, retryCount: $retryCount"
             Invoke-Command $ScriptBlock
             break
         }
         catch
         {
-            if($null -eq $_.Exception -or $null -eq $_.Exception.InnerException -or $_.Exception.InnerException.ErrorCode -ne 429 -or $retryCount -eq 0)
+            if($null -eq $_.Exception -or $null -eq $_.Exception.InnerException -or ($_.Exception.InnerException.ErrorCode -ne 429 -and $_.Exception.InnerException.ErrorCode -ne 503) -or $retryCount -eq 0)
             {
                 throw
             }
