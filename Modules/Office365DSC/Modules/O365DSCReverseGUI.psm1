@@ -834,7 +834,7 @@ function Show-O365GUI
         $chckTeamsCallRoutingPolicy = New-Object System.Windows.Forms.CheckBox
         $chckTeamsCallRoutingPolicy.Top = 100
         $chckTeamsCallRoutingPolicy.AutoSize = $true;
-        $chckTeamsCallRoutingPolicy.Name = "chckTeamsCallRoutingPolicy"
+        $chckTeamsCallRoutingPolicy.Name = "chckTeamsEmergencyCallRoutingPolicy"
         $chckTeamsCallRoutingPolicy.Checked = $true
         $chckTeamsCallRoutingPolicy.Text = "Emergency Call Routing Policies"
         $pnlTeams.Controls.Add($chckTeamsCallRoutingPolicy)
