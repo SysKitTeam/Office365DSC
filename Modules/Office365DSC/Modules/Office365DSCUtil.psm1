@@ -1021,12 +1021,11 @@ function Get-AllTeamsCached
             $accessToken = Get-AppIdentityAccessToken $endpoint
             $httpClient.DefaultRequestHeaders.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::Parse("Bearer $accessToken");
             $allTeams.AddRange([Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities].GetMethod("GetAll").MakeGenericMethod([Microsoft.TeamsCmdlets.PowerShell.Custom.Model.Team]).Invoke($null, @($httpClient, $requestUri)))
-            Write-Information "Retrieved all teams"
+            Write-Verbose "Retrieved all teams"
         }
 
 
         $allTeams = $allTeams | Where-Object {
-
             $_.ResourceProvisioningOptions.Contains("Team")
         }
 
@@ -1037,22 +1036,12 @@ function Get-AllTeamsCached
                 $teamToRetrieve = $_
                 Invoke-With429Retry -ScriptBlock {
                     $accessToken = Get-AppIdentityAccessToken $endpoint
-                    Write-Information "got single item access token"
                     $singleTeamClient.DefaultRequestHeaders.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::Parse("Bearer $accessToken")
                     $groupId= $teamToRetrieve.GroupId
                     $singleTeamRequestUri = [Uri]::new("$endpoint/v1.0/teams/$groupId")
-                    Write-Information "retrieving $groupId"
                     Write-Verbose "retrieving from $singleTeamRequestUri"
                     [Type[]]$types = @([System.Net.Http.HttpClient], [Uri])
-                    # try
-                    # {
-                        $team = [Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities].GetMethod("Get", $types).MakeGenericMethod([Microsoft.TeamsCmdlets.PowerShell.Custom.Model.Team]).Invoke($null, @($singleTeamClient, $singleTeamRequestUri))
-                    # }
-                    # catch
-                    # {
-                    #     Write-Host "WTF"
-                    # }
-                    Write-Information "Retrieved single item team"
+                    $team = [Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities].GetMethod("Get", $types).MakeGenericMethod([Microsoft.TeamsCmdlets.PowerShell.Custom.Model.Team]).Invoke($null, @($singleTeamClient, $singleTeamRequestUri))
                     $team.DisplayName = $_.DisplayName
                     $team.Description = $_.Description
                     $team.Visibility = $_.Visibility
@@ -1064,7 +1053,6 @@ function Get-AllTeamsCached
             }
             finally
             {
-                Write-Information "Disposed context"
                 $singleTeamClient.Dispose()
             }
         }
