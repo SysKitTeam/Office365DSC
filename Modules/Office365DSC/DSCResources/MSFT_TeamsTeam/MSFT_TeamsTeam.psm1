@@ -188,9 +188,12 @@ function Get-TargetResource
 
         $Owners = [System.Collections.ArrayList]:: new()
         Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
-            $Owners.AddRange([array](Get-TeamUser -GroupId $team.GroupId -Role Owner))
+            [array]$locOwners = (Get-TeamUser -GroupId $team.GroupId -Role Owner)
+            if($locOwners)
+            {
+                $Owners.AddRange($locOwners)
+            }
         }
-
         $OwnersArray = @()
         if ($null -ne $Owners)
         {
@@ -568,6 +571,10 @@ function Export-TargetResource
         }
         $result = Get-TargetResource @params
         $result.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
+        if($result.Ensure -eq "Absent")
+        {
+            continue;
+        }
         if ("" -eq $result.Owner)
         {
             $result.Remove("Owner")
