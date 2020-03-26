@@ -2372,3 +2372,246 @@ function Load-CSOMProperties {
     }
     end { }
 }
+
+
+function Get-DSCBlockEx
+{
+<#
+.SYNOPSIS
+Generate the DSC string representing the resource's instance.
+.DESCRIPTION
+This function is really the core of ReverseDSC. It takes in an array of
+parameters and returns the DSC string that represents the given instance
+of the specified resource.
+.PARAMETER ModulePath
+Full file path to the .psm1 module we are looking to get an instance of.
+In most cases this will be the full path to the .psm1 file of the DSC resource.
+.PARAMETER Params
+Hashtable that contains the list of Key properties and their values.
+#>
+    [CmdletBinding()]
+    [OutputType([System.String])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.String]
+        $ModulePath,
+
+        [Parameter(Mandatory = $true)]
+        [System.Collections.Hashtable]
+        $Params
+    )
+
+    $Sorted = $Params.GetEnumerator() | Sort-Object -Property Name
+    $NewParams = [Ordered]@{}
+
+    foreach($entry in $Sorted)
+    {
+        $NewParams.Add($entry.Key, $entry.Value)
+    }
+
+    # Figure out what parameter has the longuest name, and get its Length;
+    $maxParamNameLength = 0
+    foreach ($param in $NewParams.Keys)
+    {
+        if ($param.Length -gt $maxParamNameLength)
+        {
+            $maxParamNameLength = $param.Length
+        }
+    }
+
+    # PSDscRunAsCredential is 20 characters and in most case the longuest.
+    if ($maxParamNameLength -lt 20)
+    {
+        $maxParamNameLength = 20
+    }
+
+    $dscBlock = ""
+    $NewParams.Keys | ForEach-Object {
+        if ($null -ne $NewParams[$_])
+        {
+            $paramType = $NewParams[$_].GetType().Name
+        }
+        else
+        {
+            $paramType = Get-DSCParamType -ModulePath $ModulePath -ParamName "`$$_"
+        }
+
+        $value = $null
+        if ($paramType -eq "System.String" -or $paramType -eq "String" -or $paramType -eq "Guid" -or $paramType -eq 'TimeSpan')
+        {
+            if (!$null -eq $NewParams.Item($_))
+            {
+                $value = "`"" + $NewParams.Item($_).ToString().Replace("`"", "```"") + "`""
+            }
+            else
+            {
+                $value = "`"" + $NewParams.Item($_) + "`""
+            }
+        }
+        elseif ($paramType -eq "System.Boolean" -or $paramType -eq "Boolean")
+        {
+            $value = "`$" + $NewParams.Item($_)
+        }
+        elseif ($paramType -eq "System.Management.Automation.PSCredential")
+        {
+            if ($null -ne $NewParams.Item($_))
+            {
+                if ($NewParams.Item($_).ToString() -like "`$Creds*")
+                {
+                    $value = $NewParams.Item($_).Replace("-", "_").Replace(".", "_")
+                }
+                else
+                {
+                    if ($null -eq $NewParams.Item($_).UserName)
+                    {
+                        $value = "`$Creds" + ($NewParams.Item($_).Split('\'))[1].Replace("-", "_").Replace(".", "_")
+                    }
+                    else
+                    {
+                        if ($NewParams.Item($_).UserName.Contains("@") -and !$NewParams.Item($_).UserName.COntains("\"))
+                        {
+                            $value = "`$Creds" + ($NewParams.Item($_).UserName.Split('@'))[0]
+                        }
+                        else
+                        {
+                            $value = "`$Creds" + ($NewParams.Item($_).UserName.Split('\'))[1].Replace("-", "_").Replace(".", "_")
+                        }
+                    }
+                }
+            }
+            else
+            {
+                $value = "Get-Credential -Message " + $_
+            }
+        }
+        elseif ($paramType -eq "System.Collections.Hashtable" -or $paramType -eq "Hashtable")
+        {
+            $value = "@{"
+            $hash = $NewParams.Item($_)
+            $hash.Keys | foreach-object {
+                try
+                {
+                    $value += $_ + " = `"" + $hash.Item($_) + "`"; "
+                }
+                catch
+                {
+                    $value = $hash
+                }
+            }
+            $value += "}"
+        }
+        elseif ($paramType -eq "System.String[]" -or $paramType -eq "String[]" -or $paramType -eq "ArrayList" -or $paramType -eq "List``1")
+        {
+            $hash = $NewParams.Item($_)
+            if ($hash -and !$hash.ToString().StartsWith("`$ConfigurationData."))
+            {
+                $value = "@("
+                $hash| ForEach-Object {
+                    $value += "`"" + $_ + "`","
+                }
+                if($value.Length -gt 2)
+                {
+                    $value = $value.Substring(0,$value.Length -1)
+                }
+                $value += ")"
+            }
+            else
+            {
+                if ($hash)
+                {
+                    $value = $hash
+                }
+                else
+                {
+                    $value = "@()"
+                }
+            }
+        }
+        elseif ($paramType -eq "System.UInt32[]")
+        {
+            $hash = $NewParams.Item($_)
+            if ($hash)
+            {
+                $value = "@("
+                $hash| ForEach-Object {
+                    $value += $_.ToString() + ","
+                }
+                if($value.Length -gt 2)
+                {
+                    $value = $value.Substring(0,$value.Length -1)
+                }
+                $value += ")"
+            }
+            else
+            {
+                if ($hash)
+                {
+                    $value = $hash
+                }
+                else
+                {
+                    $value = "@()"
+                }
+            }
+        }
+        elseif ($paramType -eq "Object[]" -or $paramType -eq "Microsoft.Management.Infrastructure.CimInstance[]")
+        {
+            $array = $hash = $NewParams.Item($_)
+
+            if ($array.Length -gt 0 -and ($array[0].GetType().Name -eq "String" -and $paramType -ne "Microsoft.Management.Infrastructure.CimInstance[]"))
+            {
+                $value = "@("
+                $hash| ForEach-Object {
+                    $value += "`"" + $_ + "`","
+                }
+                if($value.Length -gt 2)
+                {
+                    $value = $value.Substring(0,$value.Length -1)
+                }
+                $value += ")"
+            }
+            else
+            {
+                $value = "@("
+                $array | ForEach-Object{
+                    $value += $_
+                }
+                $value += ")"
+            }
+        }
+        elseif ($paramType -eq "CimInstance")
+        {
+            $value = $NewParams[$_]
+        }
+        else
+        {
+            if ($null -eq $NewParams[$_])
+            {
+                $value = "`$null"
+            }
+            else
+            {
+                if($NewParams[$_].GetType().BaseType.Name -eq "Enum")
+                {
+                    $value = "`"" + $NewParams.Item($_) + "`""
+                }
+                else
+                {
+                    $value = $NewParams.Item($_)
+                }
+            }
+        }
+
+        # Determine the number of additional spaces we need to add before the '=' to make sure the values are all aligned. This number
+        # is obtained by substracting the length of the current parameter's name to the maximum length found.
+        $numberOfAdditionalSpaces = $maxParamNameLength - $_.Length
+        $additionalSpaces = ""
+        for ($i = 0; $i -lt $numberOfAdditionalSpaces; $i++)
+        {
+            $additionalSpaces += " "
+        }
+        $dscBlock += "            " + $_  + $additionalSpaces + " = " + $value + ";`r`n"
+    }
+
+    return $dscBlock
+}
