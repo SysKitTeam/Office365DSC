@@ -314,7 +314,11 @@ function Export-TargetResource
                         {
                             $users = [System.Collections.ArrayList]:: new()
                             Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
-                                $users.AddRange([array](Get-TeamUser -GroupId $team.GroupId))
+                                [array]$locUsers = Get-TeamUser -GroupId $team.GroupId
+                                if($locUsers)
+                                {
+                                    $users.AddRange($locUsers)
+                                }
                             }
 
                             $i = 1
