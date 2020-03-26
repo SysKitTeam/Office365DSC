@@ -182,6 +182,10 @@ function Export-TargetResource
     }
 
     $result = Get-TargetResource @params
+    if($result.Ensure -eq "Absent")
+    {
+        return ""
+    }
     $result.GlobalAdminAccount = "`$Credsglobaladmin"
 
     $content = "        SPOHomeSite " + (New-GUID).ToString() + "`r`n"
