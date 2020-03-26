@@ -2373,21 +2373,72 @@ function Load-CSOMProperties {
     end { }
 }
 
+function Get-DSCPSTokenValue
+{
+    [CmdletBinding()]
+    [OutputType([System.String])]
+    param(
+        [Parameter()]
+        [Object]
+        $Value,
+
+        [Parameter()]
+        [bool]
+        $AllowSpecialCharachters
+    )
+
+    if($null -eq $Value)
+    {
+        $Value = ""
+    }
+
+    if(!($Value -is [string])) {
+        $Value = $Value.ToString()
+    }
+
+    $sb =  [System.Text.StringBuilder]::new()
+
+    [void]$sb.Append("`"")
+
+    if(!$AllowSpecialCharachters)
+    {
+        foreach($char in [char[]]$Value)
+        {
+            if($char -eq '"' -or $char -eq [char]0x201C -or $char -eq [char]0x201D -or $char -eq [char]0x201E -or $char -eq '$')
+            {
+               [void]$sb.Append('`')
+            }
+            [void]$sb.Append($char)
+        }
+    }
+    else
+    {
+        [void]$sb.Append($Value);
+    }
+
+    [void]$sb.Append("`"")
+    $retVal = $sb.ToString()
+    return $retVal
+}
 
 function Get-DSCBlockEx
 {
 <#
 .SYNOPSIS
 Generate the DSC string representing the resource's instance.
+
 .DESCRIPTION
 This function is really the core of ReverseDSC. It takes in an array of
 parameters and returns the DSC string that represents the given instance
 of the specified resource.
+
 .PARAMETER ModulePath
 Full file path to the .psm1 module we are looking to get an instance of.
 In most cases this will be the full path to the .psm1 file of the DSC resource.
+
 .PARAMETER Params
 Hashtable that contains the list of Key properties and their values.
+
 #>
     [CmdletBinding()]
     [OutputType([System.String])]
@@ -2398,7 +2449,11 @@ Hashtable that contains the list of Key properties and their values.
 
         [Parameter(Mandatory = $true)]
         [System.Collections.Hashtable]
-        $Params
+        $Params,
+
+        [Parameter()]
+        [System.String[]]
+        $PropertiesWithAllowedSpecialCharacters
     )
 
     $Sorted = $Params.GetEnumerator() | Sort-Object -Property Name
@@ -2436,17 +2491,12 @@ Hashtable that contains the list of Key properties and their values.
             $paramType = Get-DSCParamType -ModulePath $ModulePath -ParamName "`$$_"
         }
 
+        $AllowSpecialCharachtersInValues = $null -ne $PropertiesWithAllowedSpecialCharacters -and $PropertiesWithAllowedSpecialCharacters.Contains($_) -or $_ -eq 'GlobalAdminAccount'
+
         $value = $null
         if ($paramType -eq "System.String" -or $paramType -eq "String" -or $paramType -eq "Guid" -or $paramType -eq 'TimeSpan')
         {
-            if (!$null -eq $NewParams.Item($_))
-            {
-                $value = "`"" + $NewParams.Item($_).ToString().Replace("`"", "```"") + "`""
-            }
-            else
-            {
-                $value = "`"" + $NewParams.Item($_) + "`""
-            }
+            $value = Get-DSCPSTokenValue -Value ($NewParams.Item($_)) -AllowSpecialCharachters $AllowSpecialCharachtersInValues
         }
         elseif ($paramType -eq "System.Boolean" -or $paramType -eq "Boolean")
         {
@@ -2491,7 +2541,8 @@ Hashtable that contains the list of Key properties and their values.
             $hash.Keys | foreach-object {
                 try
                 {
-                    $value += $_ + " = `"" + $hash.Item($_) + "`"; "
+                    $escapedItemValue = Get-DSCPSTokenValue -Value $hash.Item($_) -AllowSpecialCharachters $AllowSpecialCharachtersInValues
+                    $value += $_ + " = " + $escapedItemValue + "; "
                 }
                 catch
                 {
@@ -2507,7 +2558,8 @@ Hashtable that contains the list of Key properties and their values.
             {
                 $value = "@("
                 $hash| ForEach-Object {
-                    $value += "`"" + $_ + "`","
+                    $escapedValue = Get-DSCPSTokenValue -Value $_ -AllowSpecialCharachters $AllowSpecialCharachtersInValues
+                    $value += $escapedValue +","
                 }
                 if($value.Length -gt 2)
                 {
@@ -2562,7 +2614,8 @@ Hashtable that contains the list of Key properties and their values.
             {
                 $value = "@("
                 $hash| ForEach-Object {
-                    $value += "`"" + $_ + "`","
+                    $escapedItemValue = Get-DSCPSTokenValue -Value $_ -AllowSpecialCharachters $AllowSpecialCharachtersInValues
+                    $value +=  $escapedItemValue + ","
                 }
                 if($value.Length -gt 2)
                 {
