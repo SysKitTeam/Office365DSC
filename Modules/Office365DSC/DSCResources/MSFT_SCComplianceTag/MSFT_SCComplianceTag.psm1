@@ -388,7 +388,7 @@ function Export-TargetResource
         $result.FilePlanProperty = Get-SCFilePlanPropertyAsString $result.FilePlanProperty
         $content += "        SCComplianceTag " + (New-GUID).ToString() + "`r`n"
         $content += "        {`r`n"
-        $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot
+        $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot -PropertiesWithAllowedSpecialCharacters @("FilePlanProperty")
         $currentDSCBlock = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "FilePlanProperty"
         $content += Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
         $content += "        }`r`n"
