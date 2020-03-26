@@ -212,6 +212,39 @@ function Start-O365ConfigurationExtract
                 {
                     $exportString = Export-TargetResource -GlobalAdminAccount $GlobalAdminAccount
                 }
+
+                $psParseErrorOccurred = $false
+                try
+                {
+                    [System.Management.Automation.Language.Token[]]$tokens = $null;
+                    [System.Management.Automation.Language.ParseError[]]$parseErrors = $null;
+                    [void][System.Management.Automation.Language.Parser]::ParseInput($exportString, [ref]$tokens, [ref]$parseErrors)
+                    if($parseErrors.Length -gt 0)
+                    {
+                        Write-Error "The [$resourceName] resource encountered an error and will not be available in the extracted data"
+                        Write-Verbose "The [$resourceName] had parse errors"
+                        Write-Verbose "#######PARSE ERRORS START####################"
+                        foreach($parseError in $parseErrors)
+                        {
+                           Write-Verbose $parseError
+                        }
+                        Write-Verbose "#######PARSE INPUT WITH ERRORS START######################"
+                        Write-Verbose $exportString
+                        Write-Verbose "#######PARSE ERRORS END#############################"
+                        $psParseErrorOccurred = $true
+                    }
+                }
+                catch
+                {
+                    $psParseErrorOccurred = $true
+                    Write-Error $_
+                }
+
+                if($psParseErrorOccurred)
+                {
+                    $exportString = ""
+                }
+
                 $DSCContent += $exportString
             }
         }
@@ -298,7 +331,10 @@ function Start-O365ConfigurationExtract
     {
         $outputDSCFile = $OutputDSCPath + "Office365TenantConfig.ps1"
     }
-    $DSCContent | Out-File $outputDSCFile
+
+    # this is to avoid problems with unicode charachters when executing the generated ps1 file
+    $Utf8BomEncoding = New-Object System.Text.UTF8Encoding $True
+    [System.IO.File]::WriteAllText($outputDSCFile, $DSCContent, $Utf8BomEncoding)
 
     if (!$AzureAutomation)
     {
