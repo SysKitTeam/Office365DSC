@@ -341,7 +341,7 @@ function Export-TargetResource
                                 $result.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
                                 $content += "        TeamsUser " + (New-GUID).ToString() + "`r`n"
                                 $content += "        {`r`n"
-                                $currentDSCBlock = Get-DSCBlock -Params $result -ModulePath $params.ScriptRoot
+                                $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $params.ScriptRoot
                                 $partialContent = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
                                 $partialContent += "        }`r`n"
                                 if ($partialContent.ToLower().Contains($organization.ToLower()))

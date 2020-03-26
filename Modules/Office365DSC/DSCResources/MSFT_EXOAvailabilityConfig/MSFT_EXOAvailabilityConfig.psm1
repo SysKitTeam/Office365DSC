@@ -175,7 +175,7 @@ function Export-TargetResource
     $result.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
     $content = "        EXOAvailabilityConfig " + (New-GUID).ToString() + "`r`n"
     $content += "        {`r`n"
-    $currentDSCBlock = Get-DSCBlock -Params $result -ModulePath $PSScriptRoot
+    $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot
     $content += Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
     $content += "        }`r`n"
     return $content

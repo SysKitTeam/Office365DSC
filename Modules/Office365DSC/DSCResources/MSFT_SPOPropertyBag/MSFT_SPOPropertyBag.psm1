@@ -293,7 +293,7 @@ function Export-TargetResource
                                 $result.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
                                 $content += "        SPOPropertyBag " + (New-GUID).ToString() + "`r`n"
                                 $content += "        {`r`n"
-                                $currentDSCBlock = Get-DSCBlock -Params $result -ModulePath $params.ScriptRoot
+                                $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $params.ScriptRoot
                                 $content += Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
                                 $content += "        }`r`n"
                             }

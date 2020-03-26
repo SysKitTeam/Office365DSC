@@ -237,7 +237,7 @@ function Export-TargetResource
         $result.Palette = ConvertTo-SPOThemePalettePropertyString -Palette $result.Palette
         $content += "        SPOTheme " + (New-GUID).ToString() + "`r`n"
         $content += "        {`r`n"
-        $currentDSCBlock = Get-DSCBlock -Params $result -ModulePath $PSScriptRoot
+        $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot
         $currentDSCBlock = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "Palette"
         $currentDSCBlock = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
         $content += $currentDSCBlock

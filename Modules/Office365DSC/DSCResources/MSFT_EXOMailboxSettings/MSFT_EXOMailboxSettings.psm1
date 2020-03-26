@@ -220,7 +220,7 @@ function Export-TargetResource
                 $modulePath = $PSScriptRoot + "\MSFT_EXOMailboxSettings.psm1"
                 $content += "        EXOMailboxSettings " + (New-GUID).ToString() + "`r`n"
                 $content += "        {`r`n"
-                $currentDSCBlock = Get-DSCBlock -Params $result -ModulePath $modulePath
+                $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $modulePath
                 $content += Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
                 $content += "        }`r`n"
             }
