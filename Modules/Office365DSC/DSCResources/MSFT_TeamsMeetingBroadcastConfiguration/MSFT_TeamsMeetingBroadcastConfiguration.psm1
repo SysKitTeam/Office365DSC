@@ -222,7 +222,7 @@ function Export-TargetResource
     $result.SdnAPIToken = '$ConfigurationData.Settings.SdnApiToken'
     $content = "        TeamsMeetingBroadcastConfiguration " + (New-GUID).ToString() + "`r`n"
     $content += "        {`r`n"
-    $currentDSCBlock = Get-DSCBlock -Params $result -ModulePath $PSScriptRoot
+    $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot -PropertiesWithAllowedSpecialCharacters @("SdnApiToken")
     $partial = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
     $partial = Convert-DSCStringParamToVariable -DSCBlock $partial -ParameterName "SdnApiToken"
     $content += $partial

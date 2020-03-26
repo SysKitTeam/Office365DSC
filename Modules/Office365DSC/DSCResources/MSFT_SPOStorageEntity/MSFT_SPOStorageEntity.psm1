@@ -295,7 +295,7 @@ function Export-TargetResource
         $result.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
         $content += "        SPOStorageEntity " + (New-Guid).ToString() + "`r`n"
         $content += "        {`r`n"
-        $partialContent = Get-DSCBlock -Params $result -ModulePath $PSScriptRoot
+        $partialContent = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot
         $partialContent = Convert-DSCStringParamToVariable -DSCBlock $partialContent -ParameterName "GlobalAdminAccount"
         if ($partialContent.ToLower().Contains("https://" + $principal.ToLower()))
         {

@@ -182,11 +182,15 @@ function Export-TargetResource
     }
 
     $result = Get-TargetResource @params
+    if($result.Ensure -eq "Absent")
+    {
+        return ""
+    }
     $result.GlobalAdminAccount = "`$Credsglobaladmin"
 
     $content = "        SPOHomeSite " + (New-GUID).ToString() + "`r`n"
     $content += "        {`r`n"
-    $currentDSCBlock = Get-DSCBlock -Params $result -ModulePath $PSScriptRoot
+    $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot
     $content += Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
     $content += "        }`r`n"
     return $content

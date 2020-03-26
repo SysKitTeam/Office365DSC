@@ -364,7 +364,7 @@ function Export-TargetResource
         $result.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
         $DSCContent = "        SCComplianceSearch " + (New-GUID).ToString() + "`r`n"
         $DSCContent += "        {`r`n"
-        $currentDSCBlock = Get-DSCBlock -Params $result -ModulePath $PSScriptRoot
+        $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot
         $partialContent = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
         $partialContent += "        }`r`n"
         $DSCContent += $partialContent
@@ -393,7 +393,7 @@ function Export-TargetResource
             $result.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
             $DSCContent += "        SCComplianceSearch " + (New-GUID).ToString() + "`r`n"
             $DSCContent += "        {`r`n"
-            $currentDSCBlock = Get-DSCBlock -Params $result -ModulePath $PSScriptRoot
+            $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot
             $partialContent = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
             $partialContent += "        }`r`n"
             $DSCContent += $partialContent

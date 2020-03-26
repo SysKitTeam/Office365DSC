@@ -574,7 +574,7 @@ function Export-TargetResource
         }
         $content += "        TeamsTeam " + (New-GUID).ToString() + "`r`n"
         $content += "        {`r`n"
-        $currentDSCBlock = Get-DSCBlock -Params $result -ModulePath $PSScriptRoot
+        $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot
         $partialContent = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
         $partialContent += "        }`r`n"
         if ($partialContent.ToLower().Contains("@" + $organization.ToLower()))

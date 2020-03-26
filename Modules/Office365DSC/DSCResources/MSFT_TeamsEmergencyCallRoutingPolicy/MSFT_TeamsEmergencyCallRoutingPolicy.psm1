@@ -282,7 +282,7 @@ function Export-TargetResource
             $result.EmergencyNumbers = ConvertTo-TeamsEmergencyNumbersString -Numbers $result.EmergencyNumbers
         }
 
-        $currentDSCBlock = Get-DSCBlock -Params $result -ModulePath $PSScriptRoot
+        $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot -PropertiesWithAllowedSpecialCharacters @("EmergencyNumbers")
 
         if ($null -ne $result.EmergencyNumbers)
         {

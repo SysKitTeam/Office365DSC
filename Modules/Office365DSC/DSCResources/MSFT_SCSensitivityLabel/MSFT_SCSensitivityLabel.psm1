@@ -408,7 +408,7 @@ function Export-TargetResource
             }
             $content += "        SCSensitivityLabel " + (New-GUID).ToString() + "`r`n"
             $content += "        {`r`n"
-            $currentDSCBlock = Get-DSCBlock -Params $result -ModulePath $PSScriptRoot
+            $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot -PropertiesWithAllowedSpecialCharacters @("AdvancedSettings","LocaleSettings")
             $currentDSCBlock = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "AdvancedSettings"
             $currentDSCBlock = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "LocaleSettings"
             $currentDSCBlock = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"

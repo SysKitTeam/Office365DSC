@@ -493,7 +493,7 @@ function Export-TargetResource
 
         $content += "        SPOHubSite " + (New-GUID).ToString() + "`r`n"
         $content += "        {`r`n"
-        $partialContent = Get-DSCBlock -Params $result -ModulePath $PSScriptRoot
+        $partialContent = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot
         $partialContent = Convert-DSCStringParamToVariable -DSCBlock $partialContent -ParameterName "GlobalAdminAccount"
         if ($partialContent.ToLower().Contains($organization.ToLower()) -or `
             $partialContent.ToLower().Contains($principal.ToLower()))

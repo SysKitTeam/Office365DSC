@@ -260,7 +260,7 @@ function Export-TargetResource
                             $content += "        SPOUserProfileProperty " + (New-GUID).ToString() + "`r`n"
                             $content += "        {`r`n"
 
-                            $currentDSCBlock = Get-DSCBlock -Params $result -ModulePath $params.ScriptRoot
+                            $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $params.ScriptRoot -PropertiesWithAllowedSpecialCharacters @("Properties")
                             $currentDSCBlock = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "Properties" -IsCIMArray $true
                             $currentDSCBlock = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
                             $content += $currentDSCBlock

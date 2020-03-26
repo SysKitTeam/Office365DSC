@@ -285,7 +285,7 @@ function Export-TargetResource
             $modulePath = $PSScriptRoot + "\MSFT_EXOSharedMailbox.psm1"
             $content += "        EXOSharedMailbox " + (New-GUID).ToString() + "`r`n"
             $content += "        {`r`n"
-            $partialContent = Get-DSCBlock -Params $result -ModulePath $modulePath
+            $partialContent = Get-DSCBlockEx -Params $result -ModulePath $modulePath
             $partialContent = Convert-DSCStringParamToVariable -DSCBlock $partialContent -ParameterName "GlobalAdminAccount"
             if ($partialContent.ToLower().IndexOf("@" + $organization.ToLower()) -gt 0)
             {
