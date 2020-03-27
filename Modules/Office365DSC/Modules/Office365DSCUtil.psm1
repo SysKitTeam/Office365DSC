@@ -987,6 +987,33 @@ function Reset-AllTeamsCached
 
     $Global:O365TeamsCached = $null
 }
+
+
+function Get-TeamEnabledOffice365Groups
+{
+    $allTeams = New-Object Collections.Generic.List[Microsoft.TeamsCmdlets.PowerShell.Custom.Model.Team]
+    $endpoint = "https://graph.microsoft.com"
+    $accessToken = Get-AppIdentityAccessToken $endpoint
+
+    $httpClient = [Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities]::GetClient("Bearer $accessToken", "Get-TeamTraceCustom")
+
+    $requestUri = [Uri]::new("$endpoint/v1.0/groups?$filter=groupTypes/any(c:c+eq+'Unified')&`$select=id,resourceProvisioningOptions,displayName,description,visibility,mailnickname,classification")
+        Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
+            $accessToken = Get-AppIdentityAccessToken $endpoint
+            $httpClient.DefaultRequestHeaders.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::Parse("Bearer $accessToken");
+            $allTeams.AddRange([Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities].GetMethod("GetAll").MakeGenericMethod([Microsoft.TeamsCmdlets.PowerShell.Custom.Model.Team]).Invoke($null, @($httpClient, $requestUri)))
+            Write-Verbose "Retrieved all teams"
+        }
+
+    $allTeams = $allTeams | Where-Object {
+        $_.ResourceProvisioningOptions.Contains("Team")
+    }
+
+    return $allTeams
+}
+
+
+
 function Get-AllTeamsCached
 {
     [CmdletBinding()]
@@ -1002,7 +1029,6 @@ function Get-AllTeamsCached
         return $Global:O365TeamsCached
     }
 
-    $allTeams = New-Object Collections.Generic.List[Microsoft.TeamsCmdlets.PowerShell.Custom.Model.Team]
     $allTeamSettings = New-Object Collections.Generic.List[Microsoft.TeamsCmdlets.PowerShell.Custom.Model.TeamSettings]
 
     $endpoint = "https://graph.microsoft.com"
@@ -1016,18 +1042,7 @@ function Get-AllTeamsCached
     $httpClient = [Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities]::GetClient("Bearer $accessToken", "Get-TeamTraceCustom")
     try
     {
-        $requestUri = [Uri]::new("$endpoint/v1.0/groups?$filter=groupTypes/any(c:c+eq+'Unified')&`$select=id,resourceProvisioningOptions,displayName,description,visibility,mailnickname,classification")
-        Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
-            $accessToken = Get-AppIdentityAccessToken $endpoint
-            $httpClient.DefaultRequestHeaders.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::Parse("Bearer $accessToken");
-            $allTeams.AddRange([Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities].GetMethod("GetAll").MakeGenericMethod([Microsoft.TeamsCmdlets.PowerShell.Custom.Model.Team]).Invoke($null, @($httpClient, $requestUri)))
-            Write-Verbose "Retrieved all teams"
-        }
-
-
-        $allTeams = $allTeams | Where-Object {
-            $_.ResourceProvisioningOptions.Contains("Team")
-        }
+        $allTeams = Get-TeamEnabledOffice365Groups
 
         $allTeams | ForEach-Object {
             try
