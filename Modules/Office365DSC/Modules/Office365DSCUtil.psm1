@@ -991,22 +991,29 @@ function Reset-AllTeamsCached
 
 function Get-TeamEnabledOffice365Groups
 {
-    $allTeams = New-Object Collections.Generic.List[Microsoft.TeamsCmdlets.PowerShell.Custom.Model.Team]
-    $endpoint = "https://graph.microsoft.com"
-    $accessToken = Get-AppIdentityAccessToken $endpoint
+    try
+    {
+        $allTeams = New-Object Collections.Generic.List[Microsoft.TeamsCmdlets.PowerShell.Custom.Model.Team]
+        $endpoint = "https://graph.microsoft.com"
+        $accessToken = Get-AppIdentityAccessToken $endpoint
 
-    $httpClient = [Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities]::GetClient("Bearer $accessToken", "Get-TeamTraceCustom")
+        $httpClient = [Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities]::GetClient("Bearer $accessToken", "Get-TeamTraceCustom")
 
-    $requestUri = [Uri]::new("$endpoint/v1.0/groups?$filter=groupTypes/any(c:c+eq+'Unified')&`$select=id,resourceProvisioningOptions,displayName,description,visibility,mailnickname,classification")
-        Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
-            $accessToken = Get-AppIdentityAccessToken $endpoint
-            $httpClient.DefaultRequestHeaders.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::Parse("Bearer $accessToken");
-            $allTeams.AddRange([Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities].GetMethod("GetAll").MakeGenericMethod([Microsoft.TeamsCmdlets.PowerShell.Custom.Model.Team]).Invoke($null, @($httpClient, $requestUri)))
-            Write-Verbose "Retrieved all teams"
+        $requestUri = [Uri]::new("$endpoint/v1.0/groups?$filter=groupTypes/any(c:c+eq+'Unified')&`$select=id,resourceProvisioningOptions,displayName,description,visibility,mailnickname,classification")
+            Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
+                $accessToken = Get-AppIdentityAccessToken $endpoint
+                $httpClient.DefaultRequestHeaders.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::Parse("Bearer $accessToken");
+                $allTeams.AddRange([Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities].GetMethod("GetAll").MakeGenericMethod([Microsoft.TeamsCmdlets.PowerShell.Custom.Model.Team]).Invoke($null, @($httpClient, $requestUri)))
+                Write-Verbose "Retrieved all teams"
+            }
+
+        $allTeams = $allTeams | Where-Object {
+            $_.ResourceProvisioningOptions.Contains("Team")
         }
-
-    $allTeams = $allTeams | Where-Object {
-        $_.ResourceProvisioningOptions.Contains("Team")
+    }
+    finally
+    {
+        $httpClient.Dispose()
     }
 
     return $allTeams
@@ -1039,41 +1046,34 @@ function Get-AllTeamsCached
     # throttling is bound to come up and it is NOT handled at all
     # Get-Team
     $accessToken = Get-AppIdentityAccessToken $endpoint
-    try
-    {
-        $allTeams = Get-TeamEnabledOffice365Groups
+    $allTeams = Get-TeamEnabledOffice365Groups
 
-        $allTeams | ForEach-Object {
-            try
-            {
-                $singleTeamClient = [Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities]::GetClient("Bearer $accessToken", "Get-TeamTraceCustom")
-                $teamToRetrieve = $_
-                Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
-                    $accessToken = Get-AppIdentityAccessToken $endpoint
-                    $singleTeamClient.DefaultRequestHeaders.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::Parse("Bearer $accessToken")
-                    $groupId= $teamToRetrieve.GroupId
-                    $singleTeamRequestUri = [Uri]::new("$endpoint/v1.0/teams/$groupId")
-                    Write-Verbose "retrieving from $singleTeamRequestUri"
-                    [Type[]]$types = @([System.Net.Http.HttpClient], [Uri])
-                    $team = [Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities].GetMethod("Get", $types).MakeGenericMethod([Microsoft.TeamsCmdlets.PowerShell.Custom.Model.Team]).Invoke($null, @($singleTeamClient, $singleTeamRequestUri))
-                    $team.DisplayName = $_.DisplayName
-                    $team.Description = $_.Description
-                    $team.Visibility = $_.Visibility
-                    $team.MailNickName = $_.MailNickName
-                    $team.Classification = $_.Classification
+    $allTeams | ForEach-Object {
+        try
+        {
+            $singleTeamClient = [Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities]::GetClient("Bearer $accessToken", "Get-TeamTraceCustom")
+            $teamToRetrieve = $_
+            Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
+                $accessToken = Get-AppIdentityAccessToken $endpoint
+                $singleTeamClient.DefaultRequestHeaders.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::Parse("Bearer $accessToken")
+                $groupId= $teamToRetrieve.GroupId
+                $singleTeamRequestUri = [Uri]::new("$endpoint/v1.0/teams/$groupId")
+                Write-Verbose "retrieving from $singleTeamRequestUri"
+                [Type[]]$types = @([System.Net.Http.HttpClient], [Uri])
+                $team = [Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities].GetMethod("Get", $types).MakeGenericMethod([Microsoft.TeamsCmdlets.PowerShell.Custom.Model.Team]).Invoke($null, @($singleTeamClient, $singleTeamRequestUri))
+                $team.DisplayName = $_.DisplayName
+                $team.Description = $_.Description
+                $team.Visibility = $_.Visibility
+                $team.MailNickName = $_.MailNickName
+                $team.Classification = $_.Classification
 
-                    $allTeamSettings.Add([Microsoft.TeamsCmdlets.PowerShell.Custom.Model.TeamSettings]::new($team))
-                }
-            }
-            finally
-            {
-                $singleTeamClient.Dispose()
+                $allTeamSettings.Add([Microsoft.TeamsCmdlets.PowerShell.Custom.Model.TeamSettings]::new($team))
             }
         }
-    }
-    finally
-    {
-        $httpClient.Dispose()
+        finally
+        {
+            $singleTeamClient.Dispose()
+        }
     }
 
     $Global:O365TeamsCached = $allTeamSettings
