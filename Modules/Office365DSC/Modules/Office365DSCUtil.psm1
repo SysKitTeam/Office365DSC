@@ -1039,7 +1039,6 @@ function Get-AllTeamsCached
     # throttling is bound to come up and it is NOT handled at all
     # Get-Team
     $accessToken = Get-AppIdentityAccessToken $endpoint
-    $httpClient = [Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities]::GetClient("Bearer $accessToken", "Get-TeamTraceCustom")
     try
     {
         $allTeams = Get-TeamEnabledOffice365Groups
