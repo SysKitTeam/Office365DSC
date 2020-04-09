@@ -563,7 +563,7 @@ function Export-TargetResource
     $organization = $GlobalAdminAccount.UserName.Split('@')[1]
     foreach ($team in $teams)
     {
-        Write-Information "    - [$i/$($teams.Length)] $($team.DisplayName)o"
+        Write-Information "    - [$i/$($teams.Length)] $($team.DisplayName)"
         $params = @{
             DisplayName        = $team.DisplayName
             GlobalAdminAccount = $GlobalAdminAccount

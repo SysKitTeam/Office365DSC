@@ -30,6 +30,18 @@ function Get-TargetResource
     Add-O365DSCTelemetryEvent -Data $data
     #endregion
 
+    $nullReturn = @{
+        Name               = $Name
+        Value              = $Value
+        Ensure             = 'Absent'
+        GlobalAdminAccount = $GlobalAdminAccount
+    }
+
+    if ($null -eq (Get-Command 'Get-PolicyTipConfig' -ErrorAction SilentlyContinue))
+    {
+        return $nullReturn
+    }
+
     Test-MSCloudLogin -O365Credential $GlobalAdminAccount `
         -Platform ExchangeOnline
 
@@ -40,14 +52,6 @@ function Get-TargetResource
     if ($null -eq $PolicyTipConfig)
     {
         Write-Verbose -Message "Policy Tip Config $($Name) does not exist."
-
-        $nullReturn = @{
-            Name               = $Name
-            Value              = $Value
-            Ensure             = 'Absent'
-            GlobalAdminAccount = $GlobalAdminAccount
-        }
-
         return $nullReturn
     }
     else
@@ -197,6 +201,12 @@ function Export-TargetResource
     $data.Add("Method", $MyInvocation.MyCommand)
     Add-O365DSCTelemetryEvent -Data $data
     #endregion
+
+    if ($null -eq (Get-Command 'Get-PolicyTipConfig' -ErrorAction SilentlyContinue))
+    {
+        return ""
+    }
+
     Test-MSCloudLogin -O365Credential $GlobalAdminAccount `
         -Platform ExchangeOnline
 
