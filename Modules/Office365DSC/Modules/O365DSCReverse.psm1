@@ -250,7 +250,30 @@ function Start-O365ConfigurationExtract
         }
         catch
         {
-            New-Office365DSCLogEntry -Error $_ -Message $ResourceModule.Name -Source "[O365DSCReverse]$($ResourceModule.Name)"
+            $ex = $_.Exception
+            $isMissingGrantError = $false
+
+            while($null -ne $ex -and $ex.GetType().FullName -ne "Microsoft.IdentityModel.Clients.ActiveDirectory.AdalServiceException")
+            {
+                $ex = $ex.InnerException
+            }
+
+            if($null -ne $ex -and $ex.ErrorCode -eq "invalid_grant" -and $null -ne $ex.ServiceErrorCodes -and $ex.ServiceErrorCodes.Contains("65001"))
+            {
+                $isMissingGrantError = $true
+            }
+
+            if($isMissingGrantError -and $currentWorkload -eq 'PP')
+            {
+                Write-Verbose "PowerApps service app permissions are not granted. The enteriprise application is most likely missing.`nVisit the PowerApps admin center to get it created and rerun the Trace Configuration Wizard"
+
+                #don't want any messages in the UI
+                $platformSkipsNotified += "PowerPlatforms"
+            }
+            else
+            {
+                New-Office365DSCLogEntry -Error $_ -Message $ResourceModule.Name -Source "[O365DSCReverse]$($ResourceModule.Name)"
+            }
         }
         finally
         {
