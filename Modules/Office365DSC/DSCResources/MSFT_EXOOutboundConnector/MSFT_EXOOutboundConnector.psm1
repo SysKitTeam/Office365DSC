@@ -21,7 +21,7 @@ function Get-TargetResource
         $Comment,
 
         [Parameter()]
-        [ValidateSet('Default', 'Migrated', 'HybridWizard')]
+        [ValidateSet('Default', 'Migrated', 'HybridWizard', 'AdminUI')]
         [System.String]
         $ConnectorSource,
 
@@ -148,7 +148,7 @@ function Set-TargetResource
         $Comment,
 
         [Parameter()]
-        [ValidateSet('Default', 'Migrated', 'HybridWizard')]
+        [ValidateSet('Default', 'Migrated', 'HybridWizard', 'AdminUI')]
         [System.String]
         $ConnectorSource,
 
@@ -262,7 +262,7 @@ function Test-TargetResource
         $Comment,
 
         [Parameter()]
-        [ValidateSet('Default', 'Migrated', 'HybridWizard')]
+        [ValidateSet('Default', 'Migrated', 'HybridWizard', 'AdminUI')]
         [System.String]
         $ConnectorSource,
 
