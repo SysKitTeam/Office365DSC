@@ -6,7 +6,7 @@ class MSFT_EXOOutboundConnector : OMI_BaseResource
     [Write, Description("Specifies whether connector is enabled.")] Boolean Enabled;
     [Write, Description("Specifies whether connector should use MXRecords for target resolution.")] Boolean UseMXRecord;
     [Write, Description("The Comment parameter specifies an optional comment.")] String Comment;
-    [Write, Description("The ConnectorSource parameter specifies how the connector is created. DO NOT CHANGE THIS! values are Default (the default) | Migrated | HybridWizard "), ValueMap{"Default","Migrated","HybridWizard"}, Values{"Default","Migrated","HybridWizard"}] String ConnectorSource;
+    [Write, Description("The ConnectorSource parameter specifies how the connector is created. DO NOT CHANGE THIS! values are Default (the default) | Migrated | HybridWizard | AdminUI"), ValueMap{"Default","Migrated","HybridWizard","AdminUI"}, Values{"Default","Migrated","HybridWizard","AdminUI"}] String ConnectorSource;
     [Write, Description("The ConnectorType parameter specifies a category for the domains that are serviced by the connector. Valid values are Partner and OnPremises"),ValueMap{"Partner","OnPremises"},Values{"Partner","OnPremises"}] String ConnectorType;
     [Write, Description("The RecipientDomains parameter specifies the domain that the Outbound connector routes mail to. You can specify multiple domains separated by commas.")] String RecipientDomains[];
     [Write, Description("The SmartHosts parameter specifies the smart hosts the Outbound connector uses to route mail. This parameter is required if you set the UseMxRecord parameter to $false and must be specified on the same command line.")] String SmartHosts[];
