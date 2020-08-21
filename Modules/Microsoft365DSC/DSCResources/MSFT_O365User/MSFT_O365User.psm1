@@ -120,7 +120,7 @@ function Get-TargetResource
 
         [Parameter()]
         [System.Management.Automation.PSCredential]
-        $CertificatePassword
+        $CertificatePassword,
 
         [Parameter()]
         $RawInputObject
@@ -137,7 +137,7 @@ function Get-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    
+
 
     if(!$RawInputObject)
     {
@@ -182,6 +182,7 @@ function Get-TargetResource
             {
                 $currentLicenseAssignment += $sku.SkuPartNumber
             }
+        }
 
         $userPasswordPolicyInfo = $user | Select-Object UserprincipalName,@{
                 N="PasswordNeverExpires";E={$_.PasswordPolicies -contains "DisablePasswordExpiration"}
@@ -686,7 +687,7 @@ function Export-TargetResource
     $dscContent = ""
     $subscribedSkuPartNumbersById = @{}
     Get-AzureADSubscribedSku | ForEach-Object { $subscribedSkuPartNumbersById[$_.SkuID] = $_.SkuPartNumber }
-   
+
     $i = 1
     Write-Host "`r`n" -NoNewLine
     foreach ($user in $users)
