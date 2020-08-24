@@ -449,7 +449,7 @@ function Export-TargetResource
                                 }
                                 $content += "        TeamsUser " + (New-GUID).ToString() + "`r`n"
                                 $content += "        {`r`n"
-                                $currentDSCBlock = Get-DSCBlock -Params $result -ModulePath $params.ScriptRoot
+                                $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $params.ScriptRoot
                                 if ($ConnectionMode -eq 'Credential')
                                 {
                                     $partialContent = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
