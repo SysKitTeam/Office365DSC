@@ -404,6 +404,9 @@ function Export-TargetResource
             $VerbosePreference = 'SilentlyContinue'
             $params = $args[0]
             $dscContent = ""
+
+            $CurrentModulePath = $params.ScriptRoot + "\MSFT_SPOUsPropertyBag.psm1"
+
             foreach ($item in $params.instances)
             {
                 foreach ($site in $item)
@@ -425,7 +428,7 @@ function Export-TargetResource
                         $properties = Get-PnPPropertyBag
                         foreach ($property in $properties)
                         {
-                            $Params = @{
+                            $getParams = @{
                                 Url                   = $siteUrl
                                 Key                   = $property.Key
                                 Value                 = '*'
@@ -438,12 +441,12 @@ function Export-TargetResource
                                 RawInputObject    = $property
                             }
 
-                            $Results = Get-TargetResource @Params
+                            $Results = Get-TargetResource @getParams
                             $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
                                 -Results $Results
                             $dscContent += Get-M365DSCExportContentForResource -ResourceName "SPOPropertyBag" `
                                 -ConnectionMode $ConnectionMode `
-                                -ModulePath $PSScriptRoot `
+                                -ModulePath $CurrentModulePath `
                                 -Results $Results `
                                 -GlobalAdminAccount $GlobalAdminAccount
                         }
