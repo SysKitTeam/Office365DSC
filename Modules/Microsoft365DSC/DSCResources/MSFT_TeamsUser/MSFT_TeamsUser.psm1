@@ -52,7 +52,7 @@ function Get-TargetResource
     {
         $myUser = $RawInputObject
     }
-    else 
+    else
     {
         $ConnectionMode = New-M365DSCConnection -Platform 'MicrosoftTeams' -InboundParameters $PSBoundParameters
 
@@ -414,6 +414,7 @@ function Export-TargetResource
                                 {
                                     $getParams = @{
                                         TeamName           = $team.DisplayName
+                                        TeamMailNickName   = $team.MailNickName
                                         User               = $user.User
                                         GlobalAdminAccount = $params.GlobalAdminAccount
                                         RawInputObject     = $user
@@ -423,6 +424,7 @@ function Export-TargetResource
                                 {
                                     $getParams = @{
                                         TeamName              = $team.DisplayName
+                                        TeamMailNickName   = $team.MailNickName
                                         User                  = $user.User
                                         ApplicationId         = $ApplicationId
                                         TenantId              = $TenantId

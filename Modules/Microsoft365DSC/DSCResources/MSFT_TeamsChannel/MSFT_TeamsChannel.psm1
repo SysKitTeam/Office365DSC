@@ -358,6 +358,7 @@ function Export-TargetResource
             {
                 $params = @{
                     TeamName           = $team.DisplayName
+                    TeamMailNickName   = $team.MailNickName
                     DisplayName        = $channel.DisplayName
                     GlobalAdminAccount = $GlobalAdminAccount
                     RawInputObject     = @{
@@ -370,6 +371,7 @@ function Export-TargetResource
             {
                 $params = @{
                     TeamName              = $team.DisplayName
+                    TeamMailNickName   = $team.MailNickName
                     DisplayName           = $channel.DisplayName
                     ApplicationId         = $ApplicationId
                     TenantId              = $TenantId
