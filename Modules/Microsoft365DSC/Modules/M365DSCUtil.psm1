@@ -1085,7 +1085,7 @@ function Get-M365DSCTenantDomain
         $CertificatePath
     )
 
-    if ($null -eq $CertificatePath)
+    if (!$CertificatePath)
     {
         $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
                     -InboundParameters $PSBoundParameters
@@ -1429,14 +1429,19 @@ function Start-DSCInitializedJob
         $ArgumentList
     )
 
-    $msloginAssistentPath = $PSScriptRoot + "\..\..\MSCloudLoginAssistant\MSCloudLoginAssistant.psd1"
-    $setupAuthScript = " Import-Module '$msloginAssistentPath' -Force | Out-Null;"
+    $msloginAssistentPath = (Get-Module MSCloudLoginAssistant).Path.Replace("psm1","psd1")
+    $setupJobScript = " Import-Module '$msloginAssistentPath' -Force | Out-Null;"
     if($Global:appIdentityParams)
     {
         $entropyStr = [string]::Join(', ', $Global:appIdentityParams.TokenCacheEntropy)
-        $setupAuthScript += "[byte[]] `$tokenCacheEntropy = $entropyStr;"
-        $setupAuthScript += "Init-ApplicationIdentity -Tenant $($Global:appIdentityParams.Tenant) -AppId $($Global:appIdentityParams.AppId) -AppSecret '$($Global:appIdentityParams.AppSecret)' -CertificateThumbprint '$($Global:appIdentityParams.CertificateThumbprint)' -OnBehalfOfUserPrincipalName '$($Global:appIdentityParams.OnBehalfOfUserPrincipalName)' -TokenCacheLocation '$($Global:appIdentityParams.TokenCacheLocation)' -TokenCacheEntropy `$tokenCacheEntropy -TokenCacheDataProtectionScope $($Global:appIdentityParams.TokenCacheDataProtectionScope);"
+        $setupJobScript += "[byte[]] `$tokenCacheEntropy = $entropyStr;"
+        $setupJobScript += "Init-ApplicationIdentity -Tenant $($Global:appIdentityParams.Tenant) -AppId $($Global:appIdentityParams.AppId) -AppSecret '$($Global:appIdentityParams.AppSecret)' -CertificateThumbprint '$($Global:appIdentityParams.CertificateThumbprint)' -OnBehalfOfUserPrincipalName '$($Global:appIdentityParams.OnBehalfOfUserPrincipalName)' -TokenCacheLocation '$($Global:appIdentityParams.TokenCacheLocation)' -TokenCacheEntropy `$tokenCacheEntropy -TokenCacheDataProtectionScope $($Global:appIdentityParams.TokenCacheDataProtectionScope);"
     }
+
+    # ReverseDSC is needed because most of the time the job will call something from it
+    $reverseDscModulePath = (Get-Module ReverseDSC).Path.Replace("psm1","psd1")
+    $setupJobScript +=  " Import-Module '$reverseDscModulePath' -Force | Out-Null;"
+
 
     $insertPosition = 0
     if($ScriptBlock.Ast.BeginBlock)
@@ -1453,7 +1458,7 @@ function Start-DSCInitializedJob
     }
     $insertPosition = $insertPosition - $ScriptBlock.StartPosition.Start
     $strScriptContent = $ScriptBlock.ToString();
-    $strScriptContent = $strScriptContent.Insert($insertPosition - 1, $setupAuthScript +"`n")
+    $strScriptContent = $strScriptContent.Insert($insertPosition - 1, $setupJobScript +"`n")
     $newScriptBlock = [ScriptBlock]::Create($strScriptContent)
     Start-Job -Name $Name -ScriptBlock $newScriptBlock  -ArgumentList $ArgumentList
 }
