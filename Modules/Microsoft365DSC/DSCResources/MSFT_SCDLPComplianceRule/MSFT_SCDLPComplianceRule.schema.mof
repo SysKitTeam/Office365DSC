@@ -31,5 +31,5 @@ class MSFT_SCDLPComplianceRule : OMI_BaseResource
     [Write, Description("The ReportSeverityLevel parameter specifies the severity level of the incident report for content detections based on the rule."), ValueMap{"Low", "Medium", "High", "None"}, Values{"Low", "Medium", "High", "None"}] String ReportSeverityLevel;
     [Write, Description("The RuleErrorAction parameter specifies what to do if an error is encountered during the evaluation of the rule."), ValueMap{"Ignore", "RetryThenBlock"}, Values{"Ignore", "RetryThenBlock"}] String RuleErrorAction;
     [Write, Description("Specify if this rule should exist or not."), ValueMap{"Present","Absent"}, Values{"Present","Absent"}] String Ensure;
-    [Required, Description("Credentials of the Exchange Global Admin"), EmbeddedInstance("MSFT_Credential")] String GlobalAdminAccount;
+    [Write, Description("Credentials of the Exchange Global Admin"), EmbeddedInstance("MSFT_Credential")] String GlobalAdminAccount;
 };
