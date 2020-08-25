@@ -1169,7 +1169,7 @@ function New-M365DSCConnection
 
     # TODO: m365-merge check if we can use the newer mscloudloginassistant
     # for now we are staying on our version and just bypassing all of the new logic
-    Test-MSCloudLogin -Platform $Platform
+    Test-MSCloudLogin -Platform $Platform -CloudCredential $InboundParameters.GlobalAdminAccount
     return "ServicePrincipal"
 
     # Case both authentication methods are attempted
