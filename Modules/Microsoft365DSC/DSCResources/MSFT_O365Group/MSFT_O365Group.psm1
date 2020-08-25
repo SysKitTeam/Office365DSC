@@ -487,33 +487,22 @@ function Export-TargetResource
     $dscContent = ''
     $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
         -InboundParameters $PSBoundParameters
-    $groups = Get-AzureADMSGroup -All $true |  where-object {$_.GroupTypes -contains "Unified"}    
+    $groups = Get-AzureADMSGroup -All $true |  where-object {$_.GroupTypes -contains "Unified"}
 
     $i = 1
     Write-Host "`r`n" -NoNewLine
     foreach ($group in $groups)
     {
-        $params = @{
-            GlobalAdminAccount = $GlobalAdminAccount
-            DisplayName        = $group.DisplayName
-            ManagedBy          = "DummyUser"
-            MailNickName       = $group.MailNickName
-            RawInputObject     = $group
-        }
-        Write-Information "    - [$i/$($groups.Length)] $($group.DisplayName)"
-        $result = Get-TargetResource @params
-        $result.GlobalAdminAccount = "`$Credsglobaladmin"
-        $content += "        O365Group " + (New-GUID).ToString() + "`r`n"
-        $content += "        {`r`n"
-        $partialContent = Get-DSCBlock -Params $result -ModulePath $PSScriptRoot
-        $partialContent = Convert-DSCStringParamToVariable -DSCBlock $partialContent -ParameterName "GlobalAdminAccount"
-        if ($partialContent.ToLower().IndexOf($organization.ToLower()) -gt 0)
-        {
-            $partialContent = $partialContent -ireplace [regex]::Escape("@" + $organization), "@`$OrganizationName"
-        }
-        if ($partialContent.ToLower().IndexOf($principal.ToLower()) -gt 0)
-        {
-            $partialContent = $partialContent -ireplace [regex]::Escape("@" + $principal), "@`$(`$OrganizationName.Split('.')[0])"
+        Write-Host "    |---[$i/$($groups.Length)] $($group.DisplayName)" -NoNewLine
+        $Params = @{
+            GlobalAdminAccount    = $GlobalAdminAccount
+            ApplicationId         = $ApplicationId
+            TenantId              = $TenantId
+            CertificateThumbprint = $CertificateThumbprint
+            DisplayName           = $group.DisplayName
+            ManagedBy             = "DummyUser"
+            MailNickName          = $group.MailNickName
+            RawInputObject        = $group
         }
         $Results = Get-TargetResource @Params
         $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
