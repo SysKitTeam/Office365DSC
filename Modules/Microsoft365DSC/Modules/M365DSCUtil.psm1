@@ -2001,6 +2001,41 @@ function Update-M365DSCExportAuthenticationResults
         $Results
     )
 
+    # we at syskit do not care about the authentication data directly inside the resource
+    # because Microsoft365DSC Get-DSCBlock does not handle escaping '$' correctly the default logic works
+    # but since we in Trace do handle it corectly within Get-DSCBlockEx the default logic fails and simply cannot work
+    # at least not without additional work in the ReverseDSC module
+    # removing these properties also results in smaller filesizes for the snapshots
+    if ($Results.ContainsKey("ApplicationId"))
+    {
+        $Results.Remove("ApplicationId") | Out-Null
+    }
+    if ($Results.ContainsKey("TenantId"))
+    {
+        $Results.Remove("TenantId") | Out-Null
+    }
+    if ($Results.ContainsKey("CertificateThumbprint"))
+    {
+        $Results.Remove("CertificateThumbprint") | Out-Null
+    }
+    if ($Results.ContainsKey("CertificatePath"))
+    {
+        $Results.Remove("CertificatePath") | Out-Null
+    }
+    if ($Results.ContainsKey("CertificatePassword"))
+    {
+        $Results.Remove("CertificatePassword") | Out-Null
+    }
+    if ($Results.ContainsKey("GlobalAdminAccount"))
+    {
+        $Results.Remove("GlobalAdminAccount") | Out-Null
+    }
+
+    return $Results
+
+
+    # default Microsoft365DSC logic
+
     if ($ConnectionMode -eq 'Credential')
     {
         $Results.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
