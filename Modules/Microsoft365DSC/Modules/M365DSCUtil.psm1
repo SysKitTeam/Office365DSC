@@ -2169,7 +2169,11 @@ function Get-M365DSCExportContentForResource
 
         [Parameter()]
         [System.Management.Automation.PSCredential]
-        $GlobalAdminAccount
+        $GlobalAdminAccount,
+
+        [Parameter()]
+        [System.String[]]
+        $PropertiesWithDscBlock
     )
     $OrganizationName = ""
     if ($ConnectionMode -eq 'ServicePrincipal')
@@ -2217,6 +2221,11 @@ function Get-M365DSCExportContentForResource
             $partialContent = Convert-DSCStringParamToVariable -DSCBlock $partialContent `
                 -ParameterName "CertificatePassword"
         }
+    }
+
+    foreach ($dscProp in $PropertiesWithDscBlock) {
+        $partialContent = Convert-DSCStringParamToVariable -DSCBlock $partialContent `
+        -ParameterName $dscProp
     }
 
     if ($partialContent.ToLower().IndexOf($OrganizationName.ToLower()) -gt 0)
