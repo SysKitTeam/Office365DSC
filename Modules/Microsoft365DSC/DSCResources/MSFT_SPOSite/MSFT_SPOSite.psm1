@@ -236,7 +236,7 @@ function Get-TargetResource
             Classification                              = $site.Classification
             DisableFlows                                = $DisableFlowValue
             LogoFilePath                                = $LogoFilePath
-            SharingCapability                           = $site.SharingCapabilities
+            SharingCapability                           = $site.SharingCapability
             StorageMaximumLevel                         = $site.StorageMaximumLevel
             StorageWarningLevel                         = $site.StorageWarningLevel
             AllowSelfServiceUpgrade                     = $site.AllowSelfServiceUpgrade
