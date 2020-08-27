@@ -170,7 +170,7 @@ function Get-TargetResource
 
     Write-Verbose -Message "Checking for existence of Team $DisplayName"
 
-    
+
 
     $CurrentParameters = $PSBoundParameters
 
@@ -715,7 +715,7 @@ function Export-TargetResource
         }
         $content += "        TeamsTeam " + (New-GUID).ToString() + "`r`n"
         $content += "        {`r`n"
-        $currentDSCBlock = Get-DSCBlock -Params $result -ModulePath $PSScriptRoot
+        $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot
         if ($ConnectionMode -eq 'Credential')
         {
             $partialContent = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
