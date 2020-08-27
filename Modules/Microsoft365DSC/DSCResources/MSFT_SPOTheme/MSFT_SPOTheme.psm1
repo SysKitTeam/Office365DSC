@@ -350,6 +350,7 @@ function Export-TargetResource
             -ModulePath $PSScriptRoot `
             -Results $Results `
             -GlobalAdminAccount $GlobalAdminAccount `
+            -PropertiesWithAllowedSpecialCharacters "Palette" `
             -PropertiesWithDscBlock "Palette"
         Write-Host $Global:M365DSCEmojiGreenCheckMark
         $i++
