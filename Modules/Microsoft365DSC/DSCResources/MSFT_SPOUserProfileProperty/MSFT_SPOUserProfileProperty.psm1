@@ -347,7 +347,10 @@ function Export-TargetResource
                                 -ConnectionMode $ConnectionMode `
                                 -ModulePath $CurrentModulePath `
                                 -Results $Results `
-                                -GlobalAdminAccount $GlobalAdminAccount
+                                -GlobalAdminAccount $GlobalAdminAccount `
+                                -PropertiesWithDscBlock "Properties" `
+                                -PropertiesWithAllowedSpecialCharacters "Properties" `
+                                -PropertiesCimArrays "Properties"
                         }
                     }
                 }

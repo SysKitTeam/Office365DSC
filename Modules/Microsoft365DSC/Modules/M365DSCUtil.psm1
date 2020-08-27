@@ -2173,7 +2173,15 @@ function Get-M365DSCExportContentForResource
 
         [Parameter()]
         [System.String[]]
-        $PropertiesWithDscBlock
+        $PropertiesWithDscBlock,
+
+        [Parameter()]
+        [System.String[]]
+        $PropertiesWithAllowedSpecialCharacters,
+
+        [Parameter()]
+        [System.String[]]
+        $PropertiesCimArrays
     )
     $OrganizationName = ""
     if ($ConnectionMode -eq 'ServicePrincipal')
@@ -2188,7 +2196,7 @@ function Get-M365DSCExportContentForResource
     $principal = $OrganizationName.Split('.')[0]
     $content = "        $ResourceName " + (New-GUID).ToString() + "`r`n"
     $content += "        {`r`n"
-    $partialContent = Get-DSCBlockEx -Params $Results -ModulePath $ModulePath
+    $partialContent = Get-DSCBlockEx -Params $Results -ModulePath $ModulePath -PropertiesWithAllowedSpecialCharacters $PropertiesWithAllowedSpecialCharacters
     if ($ConnectionMode -eq 'Credential')
     {
         $partialContent = Convert-DSCStringParamToVariable -DSCBlock $partialContent `
@@ -2224,8 +2232,9 @@ function Get-M365DSCExportContentForResource
     }
 
     foreach ($dscProp in $PropertiesWithDscBlock) {
+        $isCimArray = $null -ne $PropertiesCimArrays -and $PropertiesCimArrays.Contains($dscProp)
         $partialContent = Convert-DSCStringParamToVariable -DSCBlock $partialContent `
-        -ParameterName $dscProp
+        -ParameterName $dscProp -IsCimArray $isCimArray
     }
 
     if ($partialContent.ToLower().IndexOf($OrganizationName.ToLower()) -gt 0)
