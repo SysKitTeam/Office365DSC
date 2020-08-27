@@ -340,7 +340,7 @@ function Export-TargetResource
 
     [array]$teams = Get-AllTeamsCached
     $j = 1
-    $content = ''
+    $dscContent = ''
     Write-Host "`r`n" -NoNewLine
     foreach ($team in $Teams)
     {
@@ -382,29 +382,21 @@ function Export-TargetResource
                     }
                 }
             }
-            $result = Get-TargetResource @params
-            if ($ConnectionMode -eq 'Credential')
-            {
-                $result.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
-                $result.Remove("ApplicationId")
-                $result.Remove("TenantId")
-                $result.Remove("CertificateThumbprint")
-            }
-            else
-            {
-                $result.Remove("GlobalAdminAccount")
-            }
-            $content += "        TeamsChannel " + (New-GUID).ToString() + "`r`n"
-            $content += "        {`r`n"
-            $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot
-            $content += Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
-            $content += "        }`r`n"
+            $Results = Get-TargetResource @params
+
+            $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
+                -Results $Results
+            $dscContent += Get-M365DSCExportContentForResource -ResourceName "TeamsChannel" `
+                -ConnectionMode $ConnectionMode `
+                -ModulePath $PSScriptRoot `
+                -Results $Results `
+                -GlobalAdminAccount $GlobalAdminAccount
             $i++
             Write-Host $Global:M365DSCEmojiGreenCheckMark
         }
         $j++
     }
-    return $content
+    return $dscContent
 }
 
 Export-ModuleMember -Function *-TargetResource
