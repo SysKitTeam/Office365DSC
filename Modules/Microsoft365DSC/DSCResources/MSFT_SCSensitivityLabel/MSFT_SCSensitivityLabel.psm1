@@ -906,6 +906,7 @@ function Export-TargetResource
                 GlobalAdminAccount = $GlobalAdminAccount
             }
             $Results = Get-TargetResource @Params
+            Remove-EmptyValue -Splat $Results
 
             if ($null -ne $Results.AdvancedSettings)
             {
