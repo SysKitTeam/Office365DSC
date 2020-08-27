@@ -442,6 +442,10 @@ function Export-TargetResource
                             }
 
                             $Results = Get-TargetResource @getParams
+                            # TODO: m365-merge ovako je bilo u starom kodu rijesen problem s recimo kad se datetime pojavio
+                            # no mozda bi bilo bolje to riejsiti unutar Get-DSCBlockEx gdje se provjerava kojeg je tip
+                            # pa za datetime odhandlati da bude quoteano. onda bi mozda mogli i PR za reverseDSC nabacit za originalni Get-DSCBlock ekipi iz M365DCS
+                            $Results.Value = [System.String]$result.Value
                             $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
                                 -Results $Results
                             $dscContent += Get-M365DSCExportContentForResource -ResourceName "SPOPropertyBag" `
