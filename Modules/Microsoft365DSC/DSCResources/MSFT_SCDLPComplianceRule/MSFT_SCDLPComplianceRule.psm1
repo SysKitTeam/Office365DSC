@@ -533,6 +533,7 @@ function Export-TargetResource
                 -ConnectionMode $ConnectionMode `
                 -ModulePath $PSScriptRoot `
                 -Results $Results `
+                -PropertiesWithAllowedSpecialCharacters @("ContentContainsSensitiveInformation") `
                 -GlobalAdminAccount $GlobalAdminAccount
         $currentDSCBlock = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "ContentContainsSensitiveInformation" -IsCIMArray $IsCIMArray
 

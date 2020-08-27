@@ -922,6 +922,7 @@ function Export-TargetResource
                 -ConnectionMode $ConnectionMode `
                 -ModulePath $PSScriptRoot `
                 -Results $Results `
+                -PropertiesWithAllowedSpecialCharacters @("AdvancedSettings","LocaleSettings") `
                 -GlobalAdminAccount $GlobalAdminAccount
             if ($null -ne $Results.AdvancedSettings)
             {
