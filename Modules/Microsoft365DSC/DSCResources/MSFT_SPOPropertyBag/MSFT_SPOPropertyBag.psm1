@@ -62,7 +62,7 @@ function Get-TargetResource
 
     if($RawInputObject)
     {
-        $property = $RawInputObject
+        [array]$property = $RawInputObject
     }
     else
     {
