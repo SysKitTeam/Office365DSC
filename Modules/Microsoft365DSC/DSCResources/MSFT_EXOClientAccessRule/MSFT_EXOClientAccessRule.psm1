@@ -470,6 +470,7 @@ function Export-TargetResource
     if (Confirm-ImportedCmdletIsAvailable -CmdletName Get-ClientAccessRule)
     {
         $i = 1
+        [array]$ClientAccessRules = Get-ClientAccessRule
         if ($ClientAccessRules.Length -eq 0)
         {
             Write-Host $Global:M365DSCEmojiGreenCheckMark
