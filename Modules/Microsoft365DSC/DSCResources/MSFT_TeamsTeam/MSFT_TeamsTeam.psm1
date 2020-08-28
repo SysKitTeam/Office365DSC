@@ -704,7 +704,9 @@ function Export-TargetResource
         {
             $result.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
         }
-        $result.Remove("GroupID")
+
+        # in SysKit Trace we want to show the groupID
+        # $result.Remove("GroupID")
          if($result.Ensure -eq "Absent")
         {
             continue;
