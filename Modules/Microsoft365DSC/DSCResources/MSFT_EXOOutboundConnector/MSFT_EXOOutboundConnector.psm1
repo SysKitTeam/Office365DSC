@@ -139,7 +139,7 @@ function Get-TargetResource
             AllAcceptedDomains            = $OutBoundConnector.AllAcceptedDomains
             CloudServicesMailEnabled      = $OutBoundConnector.CloudServicesMailEnabled
             Comment                       = $OutBoundConnector.Comment
-            ConnectorSource               = $ConnectorSource
+            ConnectorSource               = $ConnectorSourceValue
             ConnectorType                 = $OutBoundConnector.ConnectorType
             Enabled                       = $OutBoundConnector.Enabled
             IsTransportRuleScoped         = $OutBoundConnector.IsTransportRuleScoped
