@@ -271,7 +271,8 @@ function Set-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    Connect-Graph -Scopes "Group.ReadWrite.All" | Out-Null
+    $ConnectionMode =  New-M365DSCConnection -Platform 'MicrosoftGraph' `
+    -InboundParameters $PSBoundParameters
 
     $currentValues = Get-TargetResource @PSBoundParameters
 
