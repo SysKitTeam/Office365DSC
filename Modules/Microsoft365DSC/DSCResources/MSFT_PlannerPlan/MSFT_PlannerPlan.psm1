@@ -68,7 +68,8 @@ function Get-TargetResource
     }
 
     Write-Verbose -Message "Connecting to the Microsoft Graph"
-    $ConnectionMode = Connect-Graph -Scopes "Group.ReadWrite.All"
+    $ConnectionMode = New-M365DSCConnection -Platform 'MicrosoftGraph' `
+    -InboundParameters $PSBoundParameters
 
     $plan = $null
     foreach ($group in $AllGroups)
@@ -170,7 +171,8 @@ function Set-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    Connect-Graph -Scopes "Group.ReadWrite.All" | Out-Null
+    $ConnectionMode =  New-M365DSCConnection -Platform 'MicrosoftGraph' `
+    -InboundParameters $PSBoundParameters
 
     $SetParams = $PSBoundParameters
     $currentValues = Get-TargetResource @PSBoundParameters
@@ -290,7 +292,8 @@ function Export-TargetResource
 
     [array]$groups = Get-AzureADGroup -All:$true
 
-    $ConnectionMode = Connect-Graph -Scopes "Group.ReadWrite.All"
+    $ConnectionMode =  New-M365DSCConnection -Platform 'MicrosoftGraph' `
+    -InboundParameters $PSBoundParameters
     $i = 1
     $content = ''
     foreach ($group in $groups)
@@ -314,7 +317,7 @@ function Export-TargetResource
                 $result = Get-TargetResource @params
                 $content += "        PlannerPlan " + (New-GUID).ToString() + "`r`n"
                 $content += "        {`r`n"
-                $currentDSCBlock = Get-DSCBlock -Params $result[1] -ModulePath $PSScriptRoot
+                $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot
                 $content += $currentDSCBlock
                 $content += "        }`r`n"
                 $j++

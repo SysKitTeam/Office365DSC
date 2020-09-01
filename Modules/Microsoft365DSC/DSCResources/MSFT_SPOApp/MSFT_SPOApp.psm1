@@ -58,7 +58,7 @@ function Get-TargetResource
     #endregion
 
     $nullReturn = @{
-        Identity              = ""        
+        Identity              = ""
         Publish               = $Publish
         Overwrite             = $Overwrite
         Ensure                = "Absent"
@@ -346,15 +346,16 @@ function Export-TargetResource
                     GlobalAdminAccount    = $GlobalAdminAccount
                 }
 
-                if($result.Ensure -eq "Absent")
+
+                $Results = Get-TargetResource @Params
+                if($Results.Ensure -eq "Absent")
                 {
                     continue
                 }
 
-                $Results = Get-TargetResource @Params               
                 $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
                         -Results $Results
-                $dscContent = Get-M365DSCExportContentForResource -ResourceName $ResourceName `
+                $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
                         -ConnectionMode $ConnectionMode `
                         -ModulePath $PSScriptRoot `
                         -Results $Results `
@@ -362,7 +363,7 @@ function Export-TargetResource
             }
             $i++
             Write-Host $Global:M365DSCEmojiGreenCheckmark
-        }        
+        }
     }
     else
     {

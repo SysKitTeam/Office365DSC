@@ -45,7 +45,9 @@ function Get-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    Connect-Graph -Scopes "Group.ReadWrite.All" | Out-Null
+    $ConnectionMode = New-M365DSCConnection -Platform 'MicrosoftGraph' `
+    -InboundParameters $PSBoundParameters
+
 
     if (-not [System.String]::IsNullOrEmpty($BucketId))
     {
@@ -134,7 +136,8 @@ function Set-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    Connect-Graph -Scopes "Group.ReadWrite.All" | Out-Null
+    $ConnectionMode =  New-M365DSCConnection -Platform 'MicrosoftGraph' `
+    -InboundParameters $PSBoundParameters
 
     $SetParams = $PSBoundParameters
     $currentValues = Get-TargetResource @PSBoundParameters
@@ -249,7 +252,8 @@ function Export-TargetResource
 
     [array]$groups = Get-AzureADGroup -All:$true
 
-    $ConnectionMode = Connect-Graph -Scopes "Group.ReadWrite.All"
+    $ConnectionMode =  New-M365DSCConnection -Platform 'MicrosoftGraph' `
+    -InboundParameters $PSBoundParameters
     $i = 1
     $content = ''
     Write-Host "`r`n" -NoNewLine

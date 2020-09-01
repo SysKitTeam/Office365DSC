@@ -411,6 +411,14 @@ function Export-TargetResource
             CertificateThumbprint = $CertificateThumbprint
         }
         $Results = Get-TargetResource @Params
+        if(!$Results.MembershipRuleProcessingState)
+        {
+            $Results.Remove("MembershipRuleProcessingState")
+        }
+        if(!$Results.Visibility)
+        {
+            $Results.Remove("Visibility")
+        }
         $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
             -Results $Results
         $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `

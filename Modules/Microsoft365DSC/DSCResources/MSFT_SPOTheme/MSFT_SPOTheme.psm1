@@ -342,13 +342,16 @@ function Export-TargetResource
             GlobalAdminAccount    = $GlobalAdminAccount
         }
         $Results = Get-TargetResource @Params
+        $Results.Palette = ConvertTo-SPOThemePalettePropertyString -Palette $Results.Palette
         $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
             -Results $Results
         $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
             -ConnectionMode $ConnectionMode `
             -ModulePath $PSScriptRoot `
             -Results $Results `
-            -GlobalAdminAccount $GlobalAdminAccount
+            -GlobalAdminAccount $GlobalAdminAccount `
+            -PropertiesWithAllowedSpecialCharacters "Palette" `
+            -PropertiesWithDscBlock "Palette"
         Write-Host $Global:M365DSCEmojiGreenCheckMark
         $i++
     }

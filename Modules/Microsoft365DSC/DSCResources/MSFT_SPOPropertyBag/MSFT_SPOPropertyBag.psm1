@@ -62,7 +62,7 @@ function Get-TargetResource
 
     if($RawInputObject)
     {
-        $property = $RawInputObject
+        [array]$property = $RawInputObject
     }
     else
     {
@@ -128,7 +128,7 @@ function Get-TargetResource
             Ensure                = 'Present'
             Url                   = $Url
             Key                   = $Key
-            Value                 = $property[0]
+            Value                 = $property[0].Value
             GlobalAdminAccount    = $GlobalAdminAccount
             ApplicationId         = $ApplicationId
             TenantId              = $TenantId
@@ -404,6 +404,9 @@ function Export-TargetResource
             $VerbosePreference = 'SilentlyContinue'
             $params = $args[0]
             $dscContent = ""
+
+            $CurrentModulePath = $params.ScriptRoot + "\MSFT_SPOUsPropertyBag.psm1"
+
             foreach ($item in $params.instances)
             {
                 foreach ($site in $item)
@@ -425,7 +428,7 @@ function Export-TargetResource
                         $properties = Get-PnPPropertyBag
                         foreach ($property in $properties)
                         {
-                            $Params = @{
+                            $getParams = @{
                                 Url                   = $siteUrl
                                 Key                   = $property.Key
                                 Value                 = '*'
@@ -438,12 +441,16 @@ function Export-TargetResource
                                 RawInputObject    = $property
                             }
 
-                            $Results = Get-TargetResource @Params
+                            $Results = Get-TargetResource @getParams
+                            # TODO: m365-merge ovako je bilo u starom kodu rijesen problem s recimo kad se datetime pojavio
+                            # no mozda bi bilo bolje to riejsiti unutar Get-DSCBlockEx gdje se provjerava kojeg je tip
+                            # pa za datetime odhandlati da bude quoteano. onda bi mozda mogli i PR za reverseDSC nabacit za originalni Get-DSCBlock ekipi iz M365DCS
+                            $Results.Value = [System.String]$result.Value
                             $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
                                 -Results $Results
                             $dscContent += Get-M365DSCExportContentForResource -ResourceName "SPOPropertyBag" `
                                 -ConnectionMode $ConnectionMode `
-                                -ModulePath $PSScriptRoot `
+                                -ModulePath $CurrentModulePath `
                                 -Results $Results `
                                 -GlobalAdminAccount $GlobalAdminAccount
                         }

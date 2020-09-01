@@ -36,13 +36,13 @@ function Get-TargetResource
     Write-Verbose -Message "Getting SPO Profile Properties for user {$UserName}"
 
     #region Telemetry
-    $ResourceName = $MyInvocation.MyCommand.ModuleName.Replace("MSFT_", "")
-    $data = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
-    $data.Add("Resource", $ResourceName)
-    $data.Add("Method", $MyInvocation.MyCommand)
-    $data.Add("Principal", $GlobalAdminAccount.UserName)
-    $data.Add("TenantId", $TenantId)
-    Add-M365DSCTelemetryEvent -Data $data
+     $ResourceName = $MyInvocation.MyCommand.ModuleName.Replace("MSFT_", "")
+     $data = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
+     $data.Add("Resource", $ResourceName)
+     $data.Add("Method", $MyInvocation.MyCommand)
+     $data.Add("Principal", $GlobalAdminAccount.UserName)
+     $data.Add("TenantId", $TenantId)
+    # Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
     $ConnectionMode = New-M365DSCConnection -Platform 'PNP' -InboundParameters $PSBoundParameters
@@ -281,6 +281,10 @@ function Export-TargetResource
                 $ScriptRoot,
 
                 [Parameter()]
+                [System.String]
+                $ResourceName,
+
+                [Parameter()]
                 [System.Management.Automation.PSCredential]
                 $GlobalAdminAccount,
 
@@ -294,12 +298,15 @@ function Export-TargetResource
 
                 [Parameter()]
                 [System.String]
-                $CertificateThumbprint
+                $CertificateThumbprint,
+
+                [Parameter()]
+                [System.String]
+                $ConnectionMode
             )
 
 
             $WarningPreference = 'SilentlyContinue'
-
             # Implicitly load the M365DSCUtil.psm1 module in order to be able to call
             # into the Invoke-O36DSCCommand cmdlet;
             Import-Module ($ScriptRoot + "\..\..\Modules\M365DSCUtil.psm1") -Force | Out-Null
@@ -314,7 +321,7 @@ function Export-TargetResource
                 {
                     foreach ($user in $instance)
                     {
-                        $Params = @{
+                        $getParams = @{
                             UserName              = $user.UserPrincipalName
                             ApplicationId         = $ApplicationId
                             TenantId              = $TenantId
@@ -324,21 +331,26 @@ function Export-TargetResource
                         $CurrentModulePath = $params.ScriptRoot + "\MSFT_SPOUserProfileProperty.psm1"
                         Import-Module $CurrentModulePath -Force | Out-Null
 
-                        $Results = Get-TargetResource @Params
+                        $Results = Get-TargetResource @getParams
 
-                        if ($result.Ensure -eq "Present")
+
+                        if ($Results.Ensure -eq "Present")
                         {
-                            Import-Module ($params.ScriptRoot + "\..\..\Modules\M365DSCUtil.psm1") -Force | Out-Null
-                            Import-Module ($params.ScriptRoot + "\..\..\Modules\M365DSCTelemetryEngine.psm1") -Force | Out-Null
+                            # not needed, handled inside Start-DSCInitializedJob
+                            #Import-Module ($params.ScriptRoot + "\..\..\Modules\M365DSCUtil.psm1") -Force | Out-Null
+                            # Import-Module ($params.ScriptRoot + "\..\..\Modules\M365DSCTelemetryEngine.psm1") -Force | Out-Null
 
-                            $Results.Properties = ConvertTo-SPOUserProfilePropertyInstanceString -Properties $result.Properties
+                            $Results.Properties = ConvertTo-SPOUserProfilePropertyInstanceString -Properties $Results.Properties
                             $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
                                 -Results $Results
                             $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
                                 -ConnectionMode $ConnectionMode `
-                                -ModulePath $PSScriptRoot `
+                                -ModulePath $CurrentModulePath `
                                 -Results $Results `
-                                -GlobalAdminAccount $GlobalAdminAccount
+                                -GlobalAdminAccount $GlobalAdminAccount `
+                                -PropertiesWithDscBlock "Properties" `
+                                -PropertiesWithAllowedSpecialCharacters "Properties" `
+                                -PropertiesCimArrays "Properties"
                         }
                     }
                 }
@@ -346,7 +358,7 @@ function Export-TargetResource
                 return $dscContent
             }
             return $returnValue
-        } -ArgumentList @($batch, $PSScriptRoot, $GlobalAdminAccount, $ApplicationId, $TenantId, $CertificateThumbprint) | Out-Null
+        } -ArgumentList @($batch, $PSScriptRoot, $ResourceName, $GlobalAdminAccount, $ApplicationId, $TenantId, $CertificateThumbprint, $ConnectionMode) | Out-Null
         $i++
     }
 

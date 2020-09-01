@@ -302,7 +302,7 @@ function Export-TargetResource
     }
     Write-Host "    |---[2/2] Private" -NoNewline
     $Results = Get-TargetResource @params
-    if ($null -ne $result)
+    if ($null -ne $Results)
     {
         $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
                 -Results $Results

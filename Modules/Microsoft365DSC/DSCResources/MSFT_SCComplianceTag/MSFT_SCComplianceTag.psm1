@@ -406,7 +406,9 @@ function Export-TargetResource
                 -ConnectionMode $ConnectionMode `
                 -ModulePath $PSScriptRoot `
                 -Results $Results `
-                -GlobalAdminAccount $GlobalAdminAccount
+                -GlobalAdminAccount $GlobalAdminAccount `
+                -PropertiesWithAllowedSpecialCharacters @("FilePlanProperty")
+
         if ($null -ne $Results.FilePlanProperty)
         {
             $currentDSCBlock = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "FilePlanProperty"

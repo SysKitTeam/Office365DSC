@@ -906,6 +906,7 @@ function Export-TargetResource
                 GlobalAdminAccount = $GlobalAdminAccount
             }
             $Results = Get-TargetResource @Params
+            Remove-EmptyValue -Splat $Results
 
             if ($null -ne $Results.AdvancedSettings)
             {
@@ -922,6 +923,7 @@ function Export-TargetResource
                 -ConnectionMode $ConnectionMode `
                 -ModulePath $PSScriptRoot `
                 -Results $Results `
+                -PropertiesWithAllowedSpecialCharacters @("AdvancedSettings","LocaleSettings") `
                 -GlobalAdminAccount $GlobalAdminAccount
             if ($null -ne $Results.AdvancedSettings)
             {

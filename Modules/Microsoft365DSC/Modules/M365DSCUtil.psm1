@@ -1085,7 +1085,7 @@ function Get-M365DSCTenantDomain
         $CertificatePath
     )
 
-    if ($null -eq $CertificatePath)
+    if (!$CertificatePath)
     {
         $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
                     -InboundParameters $PSBoundParameters
@@ -1169,7 +1169,7 @@ function New-M365DSCConnection
 
     # TODO: m365-merge check if we can use the newer mscloudloginassistant
     # for now we are staying on our version and just bypassing all of the new logic
-    Test-MSCloudLogin -Platform $Platform
+    Test-MSCloudLogin -Platform $Platform -CloudCredential $InboundParameters.GlobalAdminAccount -ConnectionUrl $Url
     return "ServicePrincipal"
 
     # Case both authentication methods are attempted
@@ -1429,14 +1429,19 @@ function Start-DSCInitializedJob
         $ArgumentList
     )
 
-    $msloginAssistentPath = $PSScriptRoot + "\..\..\MSCloudLoginAssistant\MSCloudLoginAssistant.psd1"
-    $setupAuthScript = " Import-Module '$msloginAssistentPath' -Force | Out-Null;"
+    $msloginAssistentPath = (Get-Module MSCloudLoginAssistant).Path.Replace("psm1","psd1")
+    $setupJobScript = " Import-Module '$msloginAssistentPath' -Force | Out-Null;"
     if($Global:appIdentityParams)
     {
         $entropyStr = [string]::Join(', ', $Global:appIdentityParams.TokenCacheEntropy)
-        $setupAuthScript += "[byte[]] `$tokenCacheEntropy = $entropyStr;"
-        $setupAuthScript += "Init-ApplicationIdentity -Tenant $($Global:appIdentityParams.Tenant) -AppId $($Global:appIdentityParams.AppId) -AppSecret '$($Global:appIdentityParams.AppSecret)' -CertificateThumbprint '$($Global:appIdentityParams.CertificateThumbprint)' -OnBehalfOfUserPrincipalName '$($Global:appIdentityParams.OnBehalfOfUserPrincipalName)' -TokenCacheLocation '$($Global:appIdentityParams.TokenCacheLocation)' -TokenCacheEntropy `$tokenCacheEntropy -TokenCacheDataProtectionScope $($Global:appIdentityParams.TokenCacheDataProtectionScope);"
+        $setupJobScript += "[byte[]] `$tokenCacheEntropy = $entropyStr;"
+        $setupJobScript += "Init-ApplicationIdentity -Tenant $($Global:appIdentityParams.Tenant) -AppId $($Global:appIdentityParams.AppId) -AppSecret '$($Global:appIdentityParams.AppSecret)' -CertificateThumbprint '$($Global:appIdentityParams.CertificateThumbprint)' -OnBehalfOfUserPrincipalName '$($Global:appIdentityParams.OnBehalfOfUserPrincipalName)' -TokenCacheLocation '$($Global:appIdentityParams.TokenCacheLocation)' -TokenCacheEntropy `$tokenCacheEntropy -TokenCacheDataProtectionScope $($Global:appIdentityParams.TokenCacheDataProtectionScope);"
     }
+
+    # ReverseDSC is needed because most of the time the job will call something from it
+    $reverseDscModulePath = (Get-Module ReverseDSC).Path.Replace("psm1","psd1")
+    $setupJobScript +=  " Import-Module '$reverseDscModulePath' -Force | Out-Null;"
+
 
     $insertPosition = 0
     if($ScriptBlock.Ast.BeginBlock)
@@ -1453,7 +1458,7 @@ function Start-DSCInitializedJob
     }
     $insertPosition = $insertPosition - $ScriptBlock.StartPosition.Start
     $strScriptContent = $ScriptBlock.ToString();
-    $strScriptContent = $strScriptContent.Insert($insertPosition - 1, $setupAuthScript +"`n")
+    $strScriptContent = $strScriptContent.Insert($insertPosition - 1, $setupJobScript +"`n")
     $newScriptBlock = [ScriptBlock]::Create($strScriptContent)
     Start-Job -Name $Name -ScriptBlock $newScriptBlock  -ArgumentList $ArgumentList
 }
@@ -1996,6 +2001,41 @@ function Update-M365DSCExportAuthenticationResults
         $Results
     )
 
+    # we at syskit do not care about the authentication data directly inside the resource
+    # because Microsoft365DSC Get-DSCBlock does not handle escaping '$' correctly the default logic works
+    # but since we in Trace do handle it corectly within Get-DSCBlockEx the default logic fails and simply cannot work
+    # at least not without additional work in the ReverseDSC module
+    # removing these properties also results in smaller filesizes for the snapshots
+    if ($Results.ContainsKey("ApplicationId"))
+    {
+        $Results.Remove("ApplicationId") | Out-Null
+    }
+    if ($Results.ContainsKey("TenantId"))
+    {
+        $Results.Remove("TenantId") | Out-Null
+    }
+    if ($Results.ContainsKey("CertificateThumbprint"))
+    {
+        $Results.Remove("CertificateThumbprint") | Out-Null
+    }
+    if ($Results.ContainsKey("CertificatePath"))
+    {
+        $Results.Remove("CertificatePath") | Out-Null
+    }
+    if ($Results.ContainsKey("CertificatePassword"))
+    {
+        $Results.Remove("CertificatePassword") | Out-Null
+    }
+    if ($Results.ContainsKey("GlobalAdminAccount"))
+    {
+        $Results.Remove("GlobalAdminAccount") | Out-Null
+    }
+
+    return $Results
+
+
+    # default Microsoft365DSC logic
+
     if ($ConnectionMode -eq 'Credential')
     {
         $Results.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
@@ -2129,7 +2169,19 @@ function Get-M365DSCExportContentForResource
 
         [Parameter()]
         [System.Management.Automation.PSCredential]
-        $GlobalAdminAccount
+        $GlobalAdminAccount,
+
+        [Parameter()]
+        [System.String[]]
+        $PropertiesWithDscBlock,
+
+        [Parameter()]
+        [System.String[]]
+        $PropertiesWithAllowedSpecialCharacters,
+
+        [Parameter()]
+        [System.String[]]
+        $PropertiesCimArrays
     )
     $OrganizationName = ""
     if ($ConnectionMode -eq 'ServicePrincipal')
@@ -2144,7 +2196,7 @@ function Get-M365DSCExportContentForResource
     $principal = $OrganizationName.Split('.')[0]
     $content = "        $ResourceName " + (New-GUID).ToString() + "`r`n"
     $content += "        {`r`n"
-    $partialContent = Get-DSCBlockEx -Params $Results -ModulePath $ModulePath
+    $partialContent = Get-DSCBlockEx -Params $Results -ModulePath $ModulePath -PropertiesWithAllowedSpecialCharacters $PropertiesWithAllowedSpecialCharacters
     if ($ConnectionMode -eq 'Credential')
     {
         $partialContent = Convert-DSCStringParamToVariable -DSCBlock $partialContent `
@@ -2177,6 +2229,12 @@ function Get-M365DSCExportContentForResource
             $partialContent = Convert-DSCStringParamToVariable -DSCBlock $partialContent `
                 -ParameterName "CertificatePassword"
         }
+    }
+
+    foreach ($dscProp in $PropertiesWithDscBlock) {
+        $isCimArray = $null -ne $PropertiesCimArrays -and $PropertiesCimArrays.Contains($dscProp)
+        $partialContent = Convert-DSCStringParamToVariable -DSCBlock $partialContent `
+        -ParameterName $dscProp -IsCimArray $isCimArray
     }
 
     if ($partialContent.ToLower().IndexOf($OrganizationName.ToLower()) -gt 0)
