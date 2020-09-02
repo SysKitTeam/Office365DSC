@@ -24,8 +24,6 @@ function New-M365DSCLogEntry
     {
         Write-Verbose -Message "Logging a new Error"
         Write-Error  -ErrorRecord $Error
-        # TODO: m365-merge ajmo vidjet kak ce se ponasat pa maknut ako ce bit problema
-        Write-Host "$($Global:M365DSCEmojiRedX) Logging a new Error"
 
         #region Telemetry
         $driftedData = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
