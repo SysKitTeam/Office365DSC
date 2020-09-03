@@ -408,7 +408,7 @@ function Export-TargetResource
                             Write-Information "    > [$j/$totalCount] Team {$($team.DisplayName)}"
                             foreach ($user in $users)
                             {
-                                Write-Information "        - [$i/$($users.Length)] $($user.User)"
+                                Write-Information "        - [$i/$($users.Count)] $($user.User)"
 
                                 if ($ConnectionMode -eq 'Credential')
                                 {
