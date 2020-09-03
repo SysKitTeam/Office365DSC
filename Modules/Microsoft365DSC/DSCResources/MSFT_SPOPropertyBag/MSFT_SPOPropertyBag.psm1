@@ -57,7 +57,7 @@ function Get-TargetResource
     $data.Add("Method", $MyInvocation.MyCommand)
     $data.Add("Principal", $GlobalAdminAccount.UserName)
     $data.Add("TenantId", $TenantId)
-    Add-M365DSCTelemetryEvent -Data $data
+    # Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
     if($RawInputObject)
@@ -405,7 +405,8 @@ function Export-TargetResource
             $params = $args[0]
             $dscContent = ""
 
-            $CurrentModulePath = $params.ScriptRoot + "\MSFT_SPOUsPropertyBag.psm1"
+            $CurrentModulePath = $params.ScriptRoot + "\MSFT_SPOPropertyBag.psm1"
+            Import-Module $CurrentModulePath -Force
 
             foreach ($item in $params.instances)
             {
@@ -448,6 +449,7 @@ function Export-TargetResource
                             $Results.Value = [System.String]$result.Value
                             $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
                                 -Results $Results
+
                             $dscContent += Get-M365DSCExportContentForResource -ResourceName "SPOPropertyBag" `
                                 -ConnectionMode $ConnectionMode `
                                 -ModulePath $CurrentModulePath `
