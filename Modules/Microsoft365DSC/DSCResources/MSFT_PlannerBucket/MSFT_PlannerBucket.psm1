@@ -31,7 +31,10 @@ function Get-TargetResource
 
         [Parameter()]
         [System.String]
-        $CertificateThumbprint
+        $CertificateThumbprint,
+
+        [Parameter()]
+        $RawInputObject
     )
     Write-Verbose -Message "Getting configuration of Planner Bucket {$Name}"
 
@@ -45,22 +48,31 @@ function Get-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    $ConnectionMode = New-M365DSCConnection -Platform 'MicrosoftGraph' `
-    -InboundParameters $PSBoundParameters
-
-
-    if (-not [System.String]::IsNullOrEmpty($BucketId))
+    if($RawInputObject)
     {
-        [Array]$bucket = Get-MGPlannerPlanBucket -PlannerPlanId $PlanId | Where-Object -FilterScript {$_.Id -eq $BucketId}
+        [Array]$bucket = $RawInputObject.Bucket
+        $group = $RawInputObject.Group
+        $plan = $RawInputObject.Plan
     }
     else
     {
-        [Array]$bucket = Get-MGPlannerPlanBucket -PlannerPlanId $PlanId | Where-Object -FilterScript {$_.Name -eq $Name}
+        $ConnectionMode = New-M365DSCConnection -Platform 'MicrosoftGraph' `
+        -InboundParameters $PSBoundParameters
 
-        if ($bucket.Length -gt 1)
+
+        if (-not [System.String]::IsNullOrEmpty($BucketId))
         {
-            throw "Multiple Buckets with Name {$Name} were found for Plan with ID {$PlanID}." + `
-                " Please use the BucketId property to identify the exact bucket."
+            [Array]$bucket = Get-MGPlannerPlanBucket -PlannerPlanId $PlanId | Where-Object -FilterScript {$_.Id -eq $BucketId}
+        }
+        else
+        {
+            [Array]$bucket = Get-MGPlannerPlanBucket -PlannerPlanId $PlanId | Where-Object -FilterScript {$_.Name -eq $Name}
+
+            if ($bucket.Length -gt 1)
+            {
+                throw "Multiple Buckets with Name {$Name} were found for Plan with ID {$PlanID}." + `
+                    " Please use the BucketId property to identify the exact bucket."
+            }
         }
     }
 
@@ -81,6 +93,8 @@ function Get-TargetResource
         Name                  = $Name
         PlanId                = $PlanId
         BucketId              = $bucket[0].Id
+        PlanName              = $plan.Title
+        PlanOwnerGroupName    = $group.DisplayName
         Ensure                = "Present"
         ApplicationId         = $ApplicationId
         TenantID              = $TenantId
@@ -280,6 +294,11 @@ function Export-TargetResource
                         ApplicationId         = $ApplicationId
                         TenantId              = $TenantId
                         CertificateThumbprint = $CertificateThumbprint
+                        RawInputObject        = @{
+                            Group = $group
+                            Plan = $plan
+                            Bucket = $bucket
+                        }
                     }
                     $result = Get-TargetResource @params
                     $content += "        PlannerBucket " + (New-GUID).ToString() + "`r`n"

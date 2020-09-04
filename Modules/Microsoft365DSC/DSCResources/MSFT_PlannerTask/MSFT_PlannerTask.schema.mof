@@ -16,12 +16,15 @@ class MSFT_PlannerTask : OMI_BaseResource
 {
     [Key, Description("Id of the Planner Plan which contains the Task.")] string PlanId;
     [Key, Description("The Title of the Planner Task.")] string Title;
+    [Write, Description("Name of the Plan to which the task is associated with.")] string PlanName;
+    [Write, Description("Name of the Owner Group of Plan to which the task is associated with.")] string PlanOwnerGroupName;
     [Write, Description("List of categories assigned to the task."), ValueMap{"Pink", "Red", "Yellow", "Green", "Blue", "Purple"}, Values{"Pink", "Red", "Yellow", "Green", "Blue", "Purple"}] string Categories[];
     [Write, Description("List of users assigned to the tasks (ex: @('john.smith@contoso.com', 'bob.houle@contoso.com')).")] string AssignedUsers[];
     [Write, Description("List of links to attachments assigned to the task."), EmbeddedInstance("MSFT_PlannerTaskAttachment")] string Attachments[];
     [Write, Description("List checklist items associated with the task."), EmbeddedInstance("MSFT_PlannerTaskChecklistItem")] string Checklist[];
     [Write, Description("Description of the Task.")] string Notes;
     [Write, Description("The Id of the bucket that contains the task.")] string Bucket;
+    [Write, Description("The Name of the bucket that contains the task.")] string BucketName;
     [Write, Description("Id of the Task, if known.")] string TaskId;
     [Write, Description("Date and Time for the start of the Task.")] string StartDateTime;
     [Write, Description("Date and Time for the task is due for completion.")] string DueDateTime;
