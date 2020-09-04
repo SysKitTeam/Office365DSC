@@ -97,10 +97,10 @@ function Get-TargetResource
     try
     {
         Write-Verbose -Message "Getting hub site collection $Url"
-        $site = Get-PnPTenantSite -Url $Url
+        $site = Get-PnPTenantSite -Url $Url -ErrorAction SilentlyContinue
         if ($null -eq $site)
         {
-            Write-Verbose -Message "The specified Site Collection doesn't already exist."
+            Write-Verbose -Message "The specified Site Collection doesn't exist."
             return $nullReturn
         }
 
@@ -111,7 +111,12 @@ function Get-TargetResource
         }
         else
         {
-            $hubSite = Get-PnPHubSite -Identity $Url
+            $hubSite = Get-PnPHubSite -Identity $Url  -ErrorAction SilentlyContinue
+            if ($null -eq $hubSite)
+            {
+                Write-Verbose -Message "The specified Site Collection doesn't exist."
+                return $nullReturn
+            }
 
             $principals = @()
             foreach ($permission in $hubSite.Permissions.PrincipalName)
@@ -567,7 +572,6 @@ function Export-TargetResource
     $dscContent = ''
     foreach ($hub in $hubSites)
     {
-        Write-Host "    [$i/$($hubSites.Length)] $($hub.SiteUrl)" -NoNewLine
 
         $Params = @{
             Url                   = $hub.SiteUrl
@@ -580,6 +584,13 @@ function Export-TargetResource
         }
 
         $Results = Get-TargetResource @Params
+        if($Results.Ensure -eq "Absent")
+        {
+            continue
+        }
+
+        Write-Host "    [$i/$($hubSites.Length)] $($hub.SiteUrl)" -NoNewLine
+
         $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
                 -Results $Results
         $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
