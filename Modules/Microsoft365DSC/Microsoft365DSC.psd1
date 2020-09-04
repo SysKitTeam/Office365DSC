@@ -70,19 +70,19 @@
         },
         @{
             ModuleName      = "Microsoft.Graph.Authentication"
-            RequiredVersion = "0.9.1"
+            RequiredVersion = "0.7.1"
         },
         @{
             ModuleName      = "Microsoft.Graph.Groups.Planner"
-            RequiredVersion = "0.9.1"
+            RequiredVersion = "0.7.1"
         },
         @{
             ModuleName      = "Microsoft.Graph.Identity.ConditionalAccess"
-            RequiredVersion = "0.9.1"
+            RequiredVersion = "0.7.1"
         },
         @{
             ModuleName      = "Microsoft.Graph.Planner"
-            RequiredVersion = "0.9.1"
+            RequiredVersion = "0.7.1"
         },
         # we do not want to immediatelly load powerapp admin module because it uses an old ADAL version
         # and it messes up everything when office365 dsc is loaded
