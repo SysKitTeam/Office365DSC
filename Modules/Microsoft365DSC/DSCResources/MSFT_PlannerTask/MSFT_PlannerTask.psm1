@@ -74,7 +74,15 @@ function Get-TargetResource
 
         [Parameter()]
         [System.String]
-        $ApplicationId
+        $ApplicationId,
+
+        [Parameter()]
+        [System.String]
+        $PlanName,
+
+        [Parameter()]
+        [System.String]
+        $PlanOwnerGroupName
     )
     Write-Verbose -Message "Getting configuration of Planner Task {$Title}"
 
@@ -160,6 +168,8 @@ function Get-TargetResource
         }
         $results = @{
             PlanId                = $PlanId
+            PlanName              = $PlanName
+            PlanOwnerGroupName    = $PlanOwnerGroupName
             Title                 = $Title
             AssignedUsers         = $assignedValues
             TaskId                = $task.TaskId
@@ -559,6 +569,8 @@ function Export-TargetResource
                         TaskId                = $task.Id
                         PlanId                = $plan.Id
                         Title                 = $task.Title
+                        PlanName              = $plan.Title
+                        PlanOwnerGroupName    = $group.DisplayName
                         ApplicationId         = $ApplicationId
                         GlobalAdminAccount    = $GlobalAdminAccount
                     }

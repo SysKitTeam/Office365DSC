@@ -27,7 +27,10 @@ function Get-TargetResource
 
         [Parameter()]
         [System.String]
-        $CertificateThumbprint
+        $CertificateThumbprint,
+
+        [Parameter()]
+        $RawInputValue
     )
     Write-Verbose -Message "Getting configuration of Planner Plan {$Title}"
 
@@ -41,63 +44,75 @@ function Get-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
-        -InboundParameters $PSBoundParameters
+    $OwnerGroupValue = ""
+    $OwnerGroupName =  ""
 
-    $UsedID = $false
-    $AllGroups = Get-AzureADGroup -ObjectId $OwnerGroup -ErrorAction 'SilentlyContinue'
-    if ($AllGroups -eq $null)
+    if($RawInputValue)
     {
-        Write-Verbose -Message "Could not get Azure AD Group {$OwnerGroup} by ID. `
-             Trying by Name."
-        [Array]$AllGroups = Get-AzureADGroup -SearchString $OwnerGroup
+        $plan = $RawInputValue.Plan
+        $OwnerGroupValue =  $RawInputValue.Group.Id
+        $OwnerGroupName =  $RawInputValue.Group.DisplayName
     }
     else
     {
-        Write-Verbose -Message "Found group {$OwnerGroup} by ID"
-        $UsedID = $true
-    }
+        $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
+            -InboundParameters $PSBoundParameters
 
-    if ($AllGroups -eq $null)
-    {
-        Write-Verbose -Message "No Azure AD Group found for {$OwnerGroup}"
-    }
-    elseif ($AllGroups.Length -gt 1)
-    {
-        Write-Verbose -Message "Multiple Groups with name {$OwnerGroup} found."
-    }
-
-    Write-Verbose -Message "Connecting to the Microsoft Graph"
-    $ConnectionMode = New-M365DSCConnection -Platform 'MicrosoftGraph' `
-    -InboundParameters $PSBoundParameters
-
-    $plan = $null
-    foreach ($group in $AllGroups)
-    {
-        try
+        $UsedID = $false
+        $AllGroups = Get-AzureADGroup -ObjectId $OwnerGroup -ErrorAction 'SilentlyContinue'
+        if ($AllGroups -eq $null)
         {
-            Write-Verbose -Message "Scanning Group {$($group.DisplayName)} for plan {$Title}"
-            $plan = Get-MGGroupPlannerPlan -GroupId $group.ObjectId | Where-Object -FilterScript {$_.Title -eq $Title}
-            if ($null -ne $plan)
-            {
-                Write-Verbose -Message "Found Plan."
-                if ($UsedID)
-                {
-                    $OwnerGroupValue = $group.ObjectId
-                }
-                else
-                {
-                    $OwnerGroupValue = $group.DisplayName
-                }
-                break;
-            }
+            Write-Verbose -Message "Could not get Azure AD Group {$OwnerGroup} by ID. `
+                Trying by Name."
+            [Array]$AllGroups = Get-AzureADGroup -SearchString $OwnerGroup
         }
-        catch
+        else
         {
-            Write-Verbose -Message $_
-            New-M365DSCLogEntry -Error $_ `
-                -Message "Couldn't get Planner plans for {$($group.DisplayName)}" `
-                -Source $MyInvocation.MyCommand.ModuleName
+            Write-Verbose -Message "Found group {$OwnerGroup} by ID"
+            $UsedID = $true
+        }
+
+        if ($AllGroups -eq $null)
+        {
+            Write-Verbose -Message "No Azure AD Group found for {$OwnerGroup}"
+        }
+        elseif ($AllGroups.Length -gt 1)
+        {
+            Write-Verbose -Message "Multiple Groups with name {$OwnerGroup} found."
+        }
+
+        Write-Verbose -Message "Connecting to the Microsoft Graph"
+        $ConnectionMode = New-M365DSCConnection -Platform 'MicrosoftGraph' `
+        -InboundParameters $PSBoundParameters
+
+        $plan = $null
+        foreach ($group in $AllGroups)
+        {
+            try
+            {
+                Write-Verbose -Message "Scanning Group {$($group.DisplayName)} for plan {$Title}"
+                $plan = Get-MGGroupPlannerPlan -GroupId $group.ObjectId | Where-Object -FilterScript {$_.Title -eq $Title}
+                if ($null -ne $plan)
+                {
+                    Write-Verbose -Message "Found Plan."
+                    if ($UsedID)
+                    {
+                        $OwnerGroupValue = $group.ObjectId
+                    }
+                    else
+                    {
+                        $OwnerGroupValue = $group.DisplayName
+                    }
+                    break;
+                }
+            }
+            catch
+            {
+                Write-Verbose -Message $_
+                New-M365DSCLogEntry -Error $_ `
+                    -Message "Couldn't get Planner plans for {$($group.DisplayName)}" `
+                    -Source $MyInvocation.MyCommand.ModuleName
+            }
         }
     }
 
@@ -119,6 +134,7 @@ function Get-TargetResource
         $results = @{
             Title                 = $Title
             OwnerGroup            = $OwnerGroupValue
+            OwnerGroupName        = $OwnerGroupName
             Ensure                = 'Present'
             CertificateThumbprint = $CertificateThumbprint
             ApplicationId         = $ApplicationId
@@ -312,7 +328,12 @@ function Export-TargetResource
                     ApplicationId         = $ApplicationId
                     TenantId              = $TenantId
                     CertificateThumbprint = $CertificateThumbprint
+                    RawInputValue         = @{
+                        Plan = $plan
+                        Group = $group
+                    }
                 }
+
                 Write-Information "        [$j/$($plans.Length)] $($plan.Title)"
                 $result = Get-TargetResource @params
                 $content += "        PlannerPlan " + (New-GUID).ToString() + "`r`n"
