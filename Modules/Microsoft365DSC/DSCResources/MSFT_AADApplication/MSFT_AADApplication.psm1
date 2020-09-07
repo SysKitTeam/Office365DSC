@@ -82,7 +82,6 @@ function Get-TargetResource
         $CertificateThumbprint,
 
         [Parameter()]
-        [System.String]
         $RawInputObject
     )
 
