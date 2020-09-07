@@ -79,7 +79,10 @@ function Get-TargetResource
 
         [Parameter()]
         [System.String]
-        $CertificateThumbprint
+        $CertificateThumbprint,
+
+        [Parameter()]
+        $RawInputObject
     )
 
     Write-Verbose -Message "Getting configuration of Azure AD Application"
@@ -93,12 +96,21 @@ function Get-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
-                        -InboundParameters $PSBoundParameters
+
+
+    if($RawInputObject)
+    {
+        $AADApp = $RawInputObject
+    }
+    else
+    {
+        $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
+        -InboundParameters $PSBoundParameters
+    }
 
     try
     {
-        if ($null -ne $ObjectID)
+        if ($null -eq $AADApp -and $null -ne $ObjectID)
         {
             $AADApp = Get-AzureADApplication -ObjectID $ObjectId
         }
@@ -446,6 +458,7 @@ function Export-TargetResource
                 CertificateThumbprint         = $CertificateThumbprint
                 DisplayName                   = $AADApp.DisplayName
                 ObjectID                      = $AADApp.ObjectID
+                RawInputObject                = $AADApp
         }
         $Results = Get-TargetResource @Params
 

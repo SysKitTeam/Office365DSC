@@ -65,7 +65,10 @@ function Get-TargetResource
 
         [Parameter()]
         [System.String]
-        $CertificateThumbprint
+        $CertificateThumbprint,
+
+        [Parameter()]
+        $RawInputObject
     )
 
     Write-Verbose -Message "Getting configuration of AzureAD Group"
@@ -79,32 +82,39 @@ function Get-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' -InboundParameters $PSBoundParameters
-
-    if ($PSBoundParameters.ContainsKey("Id"))
+    if($RawInputObject)
     {
-        Write-Verbose -Message "GroupID was specified"
-        try
+        $Group = $RawInputObject
+    }
+    else
+    {
+        $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' -InboundParameters $PSBoundParameters
+
+        if ($PSBoundParameters.ContainsKey("Id"))
         {
-            $Group = Get-AzureADMSGroup -id $Id
+            Write-Verbose -Message "GroupID was specified"
+            try
+            {
+                $Group = Get-AzureADMSGroup -id $Id
+            }
+            catch
+            {
+                $Group = Get-AzureADMSGroup -Filter "DisplayName eq '$DisplayName'"
+                if ($Group.Length -gt 1)
+                {
+                    throw "Duplicate AzureAD Groups named $DisplayName exist in tenant"
+                }
+            }
         }
-        catch
+        else
         {
+            Write-Verbose -Message "Id was NOT specified"
+            ## Can retreive multiple AAD Groups since displayname is not unique
             $Group = Get-AzureADMSGroup -Filter "DisplayName eq '$DisplayName'"
             if ($Group.Length -gt 1)
             {
                 throw "Duplicate AzureAD Groups named $DisplayName exist in tenant"
             }
-        }
-    }
-    else
-    {
-        Write-Verbose -Message "Id was NOT specified"
-        ## Can retreive multiple AAD Groups since displayname is not unique
-        $Group = Get-AzureADMSGroup -Filter "DisplayName eq '$DisplayName'"
-        if ($Group.Length -gt 1)
-        {
-            throw "Duplicate AzureAD Groups named $DisplayName exist in tenant"
         }
     }
 
@@ -409,6 +419,7 @@ function Export-TargetResource
             ApplicationId         = $ApplicationId
             TenantId              = $TenantId
             CertificateThumbprint = $CertificateThumbprint
+            RawInputObject        = $group
         }
         $Results = Get-TargetResource @Params
         if(!$Results.MembershipRuleProcessingState)
