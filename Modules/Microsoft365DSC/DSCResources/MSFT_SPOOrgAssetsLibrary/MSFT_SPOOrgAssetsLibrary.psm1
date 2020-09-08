@@ -376,6 +376,8 @@ function Export-TargetResource
     $i = 1
     $dscContent = ''
 
+    $tenantName = $TenantId.Split(".")[0]
+
     Write-Host "`r`n" -NoNewLine
     if ($null -ne $orgAssets)
     {
