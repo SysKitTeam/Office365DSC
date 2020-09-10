@@ -67,7 +67,7 @@ function Get-TargetResource
             $Status = "Closed"
         }
         $result = @{
-            Name               = $Case.Name
+            Name               = $Case.Name +" SHADY"
             Description        = $Case.Description
             Status             = $Status
             GlobalAdminAccount = $GlobalAdminAccount
