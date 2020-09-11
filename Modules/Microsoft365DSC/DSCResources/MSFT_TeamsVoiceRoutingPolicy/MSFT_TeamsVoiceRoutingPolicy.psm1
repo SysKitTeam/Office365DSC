@@ -222,9 +222,10 @@ function Export-TargetResource
     Write-Host "`r`n" -NoNewLine
     foreach ($policy in $policies)
     {
-        Write-Host "    |---[$i/$($policies.Count)] $($policy.Identity)" -NoNewLine
+        $identity = $policy.Identity.Replace("Tag:", "")
+        Write-Host "    |---[$i/$($policies.Count)] $($identity)" -NoNewLine
         $params = @{
-            Identity           = $policy.Identity
+            Identity           = $identity
             Ensure             = 'Present'
             GlobalAdminAccount = $GlobalAdminAccount
         }
