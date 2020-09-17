@@ -80,7 +80,8 @@ function Get-TargetResource
             Identity            = $SiteScript.Id
             Title               = $SiteScript.Title
             Description         = $SiteScript.Description
-            Content             = $SiteScript.Content
+            # we do not want the content retrieve inside SysKit Trace
+            # Content             = $SiteScript.Content
             Ensure              = 'Present'
             GlobalAdminAccount  = $GlobalAdminAccount
         }
