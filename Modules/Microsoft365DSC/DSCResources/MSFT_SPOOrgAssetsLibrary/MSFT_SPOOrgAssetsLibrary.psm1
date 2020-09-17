@@ -101,29 +101,24 @@ function Get-TargetResource
     }
     else
     {
-        if ($ConnectionMode -eq 'Credential')
-        {
-            $tenantName = Get-M365TenantName -GlobalAdminAccount $GlobalAdminAccount
-        }
-        else
-        {
-            $tenantName = $TenantId.Split(".")[0]
-        }
-
+        $rootSiteUrl = Get-SPORootSiteUrl
         foreach ($orgAsset in $orgAssets.OrgAssetsLibraries)
         {
-            $orgLibraryUrl = "https://$tenantName.sharepoint.com/$($orgAsset.libraryurl.DecodedUrl)"
+            $orgLibraryUrl = "$rootSiteUrl/$($orgAsset.libraryurl.DecodedUrl)"
 
             if ($orgLibraryUrl -eq $LibraryUrl)
             {
                 Write-Verbose -Message "Found existing SharePoint Org Site Assets for $LibraryUrl"
                 if ($null -ne $orgAsset.ThumbnailUrl.DecodedUrl)
                 {
-                    $orgthumbnailUrl = "https://$tenantName.sharepoint.com/$($orgAsset.LibraryUrl.decodedurl.Substring(0,$orgAsset.LibraryUrl.decodedurl.LastIndexOf("/")))/$($orgAsset.ThumbnailUrl.decodedurl)"
+                    $orgthumbnailUrl = "$rootSiteUrl/$($orgAsset.LibraryUrl.decodedurl.Substring(0,$orgAsset.LibraryUrl.decodedurl.LastIndexOf("/")))/$($orgAsset.ThumbnailUrl.decodedurl)"
                 }
 
                 $result = @{
                     LibraryUrl            = $orgLibraryUrl
+                    DisplayName           = $orgAsset.DisplayName
+                    OrgAssetType          = $orgAsset.OrgAssetType
+                    FileType              = $orgAsset.FileType
                     ThumbnailUrl          = $orgthumbnailUrl
                     CdnType               = $cdn
                     Ensure                = "Present"
@@ -376,6 +371,8 @@ function Export-TargetResource
     $i = 1
     $dscContent = ''
 
+    $rootSiteUrl = Get-SPORootSiteUrl
+
     Write-Host "`r`n" -NoNewLine
     if ($null -ne $orgAssets)
     {
@@ -384,7 +381,7 @@ function Export-TargetResource
             Write-Host "    [$i/$($orgAssets.Length)] $LibraryUrl" -NoNewLine
             $Params = @{
                 GlobalAdminAccount = $GlobalAdminAccount
-                LibraryUrl         = "https://$tenantName.sharepoint.com/$($orgAssetLib.libraryurl.DecodedUrl)"
+                LibraryUrl         = "$rootSiteUrl/$($orgAssetLib.libraryurl.DecodedUrl)"
 
                 ApplicationId         = $ApplicationId
                 TenantId              = $TenantId
