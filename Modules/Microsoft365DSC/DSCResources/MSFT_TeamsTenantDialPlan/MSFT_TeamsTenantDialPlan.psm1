@@ -77,7 +77,7 @@ function Get-TargetResource
                 $rules = Get-M365DSCNormalizationRules -Rules $config.NormalizationRules
             }
             $result = @{
-                Identity              = $Identity.Replace("Tag", "")
+                Identity              = $Identity
                 Description           = $config.Description
                 NormalizationRules    = $rules
                 ExternalAccessPrefix  = $config.ExternalAccessPrefix
@@ -315,9 +315,10 @@ function Export-TargetResource
     Write-Host "`r`n" -NoNewLine
     foreach ($plan in $tenantDialPlans)
     {
-        Write-Host "    |---[$i/$($tenantDialPlans.Count)] $($plan.Identity)" -NoNewLine
+        $identity = $plan.Identity.Replace("Tag:", "")
+        Write-Host "    |---[$i/$($tenantDialPlans.Count)] $($identity)" -NoNewLine
         $params = @{
-            Identity            = $plan.Identity
+            Identity            = $identity
             GlobalAdminAccount  = $GlobalAdminAccount
         }
         $result = Get-TargetResource @params
@@ -358,14 +359,25 @@ function Get-M365DSCNormalizationRules
     {
         $ruleName = $rule.Name.Replace("Tag:", "")
         $ruleObject = Get-CsVoiceNormalizationRule | Where-Object -FilterScript {$_.Name -eq $ruleName}
+
+        if($null -eq $ruleObject)
+        {
+            $priority = $null;
+        }
+        else
+        {
+            $priority = $ruleObject.Priority
+        }
+
         $currentRule = @{
             Identity            = $ruleName
-            Priority            = $ruleObject.Priority
-            Description         = $ruleObject.Description
-            Pattern             = $ruleObject.Pattern
-            Translation         = $ruleObject.Translation
-            IsInternalExtension = $ruleObject.IsInternalExtension
+            Priority            = $priority
+            Description         = $rule.Description
+            Pattern             = $rule.Pattern
+            Translation         = $rule.Translation
+            IsInternalExtension = $rule.IsInternalExtension
         }
+
         $result += $currentRule
     }
 
@@ -378,32 +390,41 @@ function Get-M365DSCNormalizationRulesAsString
     [OutputType([System.String])]
     param(
         [Parameter(Mandatory = $true)]
-        [System.Collections.Hashtable]
-        $Params
+        [System.Object[]]
+        $NormalizationRules
     )
 
-    if ($null -eq $params)
+    if ($null -eq $NormalizationRules)
     {
         return $null
     }
-    $currentProperty = "MSFT_TeamsVoiceNormalizationRule{`r`n"
-    foreach ($key in $params.Keys)
+    $StringContent = "@("
+    foreach ($ruleHash in $NormalizationRules)
     {
-        if ($key -eq 'Priority')
+        $StringContent += "            MSFT_TeamsVoiceNormalizationRule`r`n            {`r`n"
+        foreach($h in $ruleHash.GetEnumerator())
         {
-            $currentProperty += "                " + $key + " = " + $params[$key] + "`r`n"
+            if($null -eq $h.Value)
+            {
+                continue;
+            }
+            if("IsInternalExtension" -eq $h.Name)
+            {
+                $StringContent += "                $($h.Name) = `$$($h.Value)`r`n"
+            }
+            elseif("Priority" -eq $h.Name)
+            {
+                $StringContent += "                $($h.Name) = $($h.Value)`r`n"
+            }
+            else
+            {
+                $StringContent += "                $($h.Name) = '$($h.Value)'`r`n"
+            }
         }
-        elseif ($key -eq "IsInternalExtension")
-        {
-            $currentProperty += "                " + $key + " = `$" + $params[$key] + "`r`n"
-        }
-        else
-        {
-            $currentProperty += "                " + $key + " = '" + $params[$key] + "'`r`n"
-        }
+        $StringContent += "            }`r`n"
     }
-    $currentProperty += "            }"
-    return $currentProperty
+    $StringContent += "            )`r`n"
+    return $StringContent
 }
 
 function Get-M365DSCNormalizationRulesDifference
