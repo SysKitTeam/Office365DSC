@@ -222,7 +222,7 @@ function Get-TargetResource
         }
 
         $DenyAddAndCustomizePagesValue = $true
-        if ($site.DenyAddAndCustomizePagesValue -eq 'Enabled')
+        if ($site.DenyAddAndCustomizePages -eq 'Enabled')
         {
             $DenyAddAndCustomizePagesValue = $false
         }
@@ -233,31 +233,39 @@ function Get-TargetResource
             Template                                    = $site.Template
             TimeZoneId                                  = $site.TimeZoneId
             HubUrl                                      = $CurrentHubUrl
-            Classification                              = $site.Classification
             DisableFlows                                = $DisableFlowValue
-            LogoFilePath                                = $LogoFilePath
+            LockState                                   = $site.LockState
             SharingCapability                           = $site.SharingCapability
             StorageMaximumLevel                         = $site.StorageMaximumLevel
             StorageWarningLevel                         = $site.StorageWarningLevel
+            AllowDownloadingNonWebViewableFiles         = $site.AllowDownloadingNonWebViewableFiles
+            AllowEditing                                = $site.AllowEditing
+            CompatibilityLevel                          = $site.CompatibilityLevel
+            ConditionalAccessPolicy                     = $site.ConditionalAccessPolicy
             AllowSelfServiceUpgrade                     = $site.AllowSelfServiceUpgrade
+            BlockDownloadLinksFileType                  = $site.BlockDownloadLinksFileType
             Owner                                       = $site.OwnerEmail
             CommentsOnSitePagesDisabled                 = $site.CommentsOnSitePagesDisabled
             DefaultLinkPermission                       = $site.DefaultLinkPermission
+            DefaultLinkToExistingAccess                 = $site.DefaultLinkToExistingAccess
+            DefaultLinkToExistingAccessReset            = $site.DefaultLinkToExistingAccessReset
             DefaultSharingLinkType                      = $site.DefaultSharingLinkType
             DisableAppViews                             = $site.DisableAppViews
             DisableCompanyWideSharingLinks              = $site.DisableCompanyWideSharingLinks
-            DisableSharingForNonOwners                  = $DisableSharingForNonOwners
             LocaleId                                    = $site.Lcid
-            RestrictedToRegion                          = $RestrictedToRegion
-            SocialBarOnSitePagesDisabled                = $SocialBarOnSitePagesDisabled
-            SiteDesign                                  = $SiteDesign
+            RestrictedToRegion                          = $site.RestrictedToRegion
+            SocialBarOnSitePagesDisabled                = $site.SocialBarOnSitePagesDisabled
             DenyAddAndCustomizePages                    = $DenyAddAndCustomizePagesValue
-            SharingAllowedDomainList                    = $SharingAllowedDomainList
-            SharingBlockedDomainList                    = $SharingBlockedDomainList
-            SharingDomainRestrictionMode                = $SharingDomainRestrictionMode
-            ShowPeoplePickerSuggestionsForGuestUsers    = $ShowPeoplePickerSuggestionsForGuestUsers
-            AnonymousLinkExpirationInDays               = $AnonymousLinkExpirationInDays
-            OverrideTenantAnonymousLinkExpirationPolicy = $OverrideTenantAnonymousLinkExpirationPolicy
+            SharingAllowedDomainList                    = $site.SharingAllowedDomainList
+            SharingBlockedDomainList                    = $site.SharingBlockedDomainList
+            SharingDomainRestrictionMode                = $site.SharingDomainRestrictionMode
+            ShowPeoplePickerSuggestionsForGuestUsers    = $site.ShowPeoplePickerSuggestionsForGuestUsers
+            AnonymousLinkExpirationInDays               = $site.AnonymousLinkExpirationInDays
+            OverrideTenantAnonymousLinkExpirationPolicy = $site.OverrideTenantAnonymousLinkExpirationPolicy
+            PWAEnabled                                  = $site.PWAEnabled
+            SandboxedCodeActivationCapability           = $site.SandboxedCodeActivationCapability
+            SiteDefinedSharingCapability                = $site.SiteDefinedSharingCapability
+
             Ensure                                      = 'Present'
             GlobalAdminAccount                          = $GlobalAdminAccount
             ApplicationId                               = $ApplicationId
@@ -828,7 +836,7 @@ function Export-TargetResource
     Write-Host "`r`n" -NoNewLine
     foreach ($site in $sites)
     {
-        $site = Get-PnPTenantSite -Url $site.Url
+        $site = Get-PnPTenantSite -Url $site.Url -Detailed
         Write-Host "    [$i/$($sites.Length)] $($site.Url)" -NoNewLine
         $siteTitle = "Null"
         if (-not [System.String]::IsNullOrEmpty($site.Title))
