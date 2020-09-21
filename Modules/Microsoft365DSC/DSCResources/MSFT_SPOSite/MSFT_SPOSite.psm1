@@ -176,13 +176,13 @@ function Get-TargetResource
     try
     {
         $CurrentHubUrl = $null
-        if($RawInputObject)
-        {
-            $site = $RawInputObject.Site
-            $hubSites = $RawInputObject.HubSites
-        }
-        else
-        {
+        # if($RawInputObject)
+        # {
+        #     $site = $RawInputObject.Site
+        #     $hubSites = $RawInputObject.HubSites
+        # }
+        # else
+      #  {
             $ConnectionMode = New-M365DSCConnection -Platform 'PnP' `
                 -InboundParameters $PSBoundParameters
             Write-Verbose -Message "Getting site collection $Url"
@@ -195,6 +195,12 @@ function Get-TargetResource
             }
 
             $hubSites = Get-PnPHubSite
+       #   }
+
+
+        if($RawInputObject)
+        {
+            $hubSites = $RawInputObject.HubSites
         }
 
         $CurrentHubUrl = $null
@@ -232,9 +238,11 @@ function Get-TargetResource
             Title                                       = $site.Title
             Template                                    = $site.Template
             TimeZoneId                                  = $site.TimeZoneId
+            Description                                 = $site.Description
             HubUrl                                      = $CurrentHubUrl
             DisableFlows                                = $DisableFlowValue
             LockState                                   = $site.LockState
+            IsHubSite                                   = $site.IsHubSite
             SharingCapability                           = $site.SharingCapability
             StorageMaximumLevel                         = $site.StorageMaximumLevel
             StorageWarningLevel                         = $site.StorageWarningLevel
@@ -243,7 +251,6 @@ function Get-TargetResource
             CompatibilityLevel                          = $site.CompatibilityLevel
             ConditionalAccessPolicy                     = $site.ConditionalAccessPolicy
             AllowSelfServiceUpgrade                     = $site.AllowSelfServiceUpgrade
-            BlockDownloadLinksFileType                  = $site.BlockDownloadLinksFileType
             Owner                                       = $site.OwnerEmail
             CommentsOnSitePagesDisabled                 = $site.CommentsOnSitePagesDisabled
             DefaultLinkPermission                       = $site.DefaultLinkPermission
@@ -262,9 +269,12 @@ function Get-TargetResource
             ShowPeoplePickerSuggestionsForGuestUsers    = $site.ShowPeoplePickerSuggestionsForGuestUsers
             AnonymousLinkExpirationInDays               = $site.AnonymousLinkExpirationInDays
             OverrideTenantAnonymousLinkExpirationPolicy = $site.OverrideTenantAnonymousLinkExpirationPolicy
+            OverrideTenantExternalUserExpirationPolicy  = $site.OverrideTenantExternalUserExpirationPolicy
+            ExternalUserExpirationInDays                = $site.ExternalUserExpirationInDays
             PWAEnabled                                  = $site.PWAEnabled
             SandboxedCodeActivationCapability           = $site.SandboxedCodeActivationCapability
             SiteDefinedSharingCapability                = $site.SiteDefinedSharingCapability
+            LimitedAccessFileType                       = $site.LimitedAccessFileType
 
             Ensure                                      = 'Present'
             GlobalAdminAccount                          = $GlobalAdminAccount
