@@ -255,7 +255,6 @@ function Get-TargetResource
             CommentsOnSitePagesDisabled                 = $site.CommentsOnSitePagesDisabled
             DefaultLinkPermission                       = $site.DefaultLinkPermission
             DefaultLinkToExistingAccess                 = $site.DefaultLinkToExistingAccess
-            DefaultLinkToExistingAccessReset            = $site.DefaultLinkToExistingAccessReset
             DefaultSharingLinkType                      = $site.DefaultSharingLinkType
             DisableAppViews                             = $site.DisableAppViews
             DisableCompanyWideSharingLinks              = $site.DisableCompanyWideSharingLinks
@@ -271,8 +270,6 @@ function Get-TargetResource
             OverrideTenantAnonymousLinkExpirationPolicy = $site.OverrideTenantAnonymousLinkExpirationPolicy
             OverrideTenantExternalUserExpirationPolicy  = $site.OverrideTenantExternalUserExpirationPolicy
             ExternalUserExpirationInDays                = $site.ExternalUserExpirationInDays
-            PWAEnabled                                  = $site.PWAEnabled
-            SandboxedCodeActivationCapability           = $site.SandboxedCodeActivationCapability
             SiteDefinedSharingCapability                = $site.SiteDefinedSharingCapability
             LimitedAccessFileType                       = $site.LimitedAccessFileType
 
