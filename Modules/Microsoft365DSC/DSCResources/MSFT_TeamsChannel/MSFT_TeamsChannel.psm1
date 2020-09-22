@@ -352,7 +352,7 @@ function Export-TargetResource
         Write-Host "    |---[$j/$($Teams.Length)] Team {$($team.DisplayName)}"
         foreach ($channel in $channels)
         {
-            Write-Host "        |---[$i/$($channels.Length)] $($channel.DisplayName)" -NoNewLine
+            Write-Host "        |---[$i/$($channels.Count)] $($channel.DisplayName)" -NoNewLine
 
             if ($ConnectionMode -eq 'Credential')
             {
