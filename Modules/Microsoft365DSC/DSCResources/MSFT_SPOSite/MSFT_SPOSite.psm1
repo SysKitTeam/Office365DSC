@@ -176,13 +176,13 @@ function Get-TargetResource
     try
     {
         $CurrentHubUrl = $null
-        # if($RawInputObject)
-        # {
-        #     $site = $RawInputObject.Site
-        #     $hubSites = $RawInputObject.HubSites
-        # }
-        # else
-      #  {
+        if($RawInputObject)
+        {
+            $site = $RawInputObject.Site
+            $hubSites = $RawInputObject.HubSites
+        }
+        else
+        {
             $ConnectionMode = New-M365DSCConnection -Platform 'PnP' `
                 -InboundParameters $PSBoundParameters
             Write-Verbose -Message "Getting site collection $Url"
@@ -195,12 +195,6 @@ function Get-TargetResource
             }
 
             $hubSites = Get-PnPHubSite
-       #   }
-
-
-        if($RawInputObject)
-        {
-            $hubSites = $RawInputObject.HubSites
         }
 
         $CurrentHubUrl = $null
