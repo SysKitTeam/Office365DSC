@@ -4,25 +4,27 @@ class MSFT_SPOSite : OMI_BaseResource
     [Key, Description("The URL of the site collection.")] string Url;
     [Required, Description("The title of the site collection.")] string Title;
     [Required, Description("TimeZone ID of the site collection.")] uint32 TimeZoneId;
+    [Write, Description("The description of the site collection.")] string Description;
     [Write, Description("Specifies the owner of the site.")] string Owner;
     [Write, Description("Specifies with template of site to create.")] string Template;
     [Write, Description("The URL of the Hub site the site collection needs to get connected to.")] string HubUrl;
-    [Write, Description("Specifies the classification of the new site collection.")] string Classification;
     [Write, Description("Disables Microsoft Flow for this site.")] boolean DisableFlows;
-    [Write, Description("Sets the logo if the site is modern team site.")] string LogoFilePath;
     [Write, Description("Specifies what the sharing capabilities are for the site. Possible values: Disabled, ExternalUserSharingOnly, ExternalUserAndGuestSharing, ExistingExternalUserSharingOnly."), ValueMap{"Disabled", "ExistingExternalUserSharingOnly", "ExternalUserSharingOnly", "ExternalUserAndGuestSharing"}, Values{"Disabled", "ExistingExternalUserSharingOnly", "ExternalUserSharingOnly", "ExternalUserAndGuestSharing"}] string SharingCapability;
     [Write, Description("Specifies the storage quota for this site collection in megabytes. This value must not exceed the company's available quota.")] uint32 StorageMaximumLevel;
     [Write, Description("Specifies the warning level for the storage quota in megabytes. This value must not exceed the values set for the StorageMaximumLevel parameter.")] uint32 StorageWarningLevel;
+    [Write, Description("Specifies if non web viewable files can be downloaded.")] boolean AllowDownloadingNonWebViewableFiles;
+    [Write, Description("Prevents users from editing Office files in the browser and copying and pasting Office file contents out of the browser window.")] boolean AllowEditing;
     [Write, Description("Specifies if the site administrator can upgrade the site collection.")] boolean AllowSelfServiceUpgrade;
+    [Write, Description("Specifies the version of templates used on the site collection.")]  uint32 CompatibilityLevel;
+    [Write, Description("Specifies the policy for access from unmanaged devices."), ValueMap{"AllowFullAccess", "AllowLimitedAccess", "BlockAccess"}, Values{"AllowFullAccess", "AllowLimitedAccess", "BlockAccess"}]  string ConditionalAccessPolicy;
     [Write, Description("Specifies if comments on site pages are enabled or disabled.")] boolean CommentsOnSitePagesDisabled;
-    [Write, Description("Specifies to prevent non-owners from inviting new users to the site.")] boolean DisableSharingForNonOwners;
+    [Write, Description("Sets the lock state on a site. Valid values are: NoAccess, ReadOnly and Unlock. When the lock state of a site is ReadOnly, a message will appear on the site stating that the site is under maintenance and it is read-only. When the lock state of a site is NoAccess, all traffic to the site will be blocked."), ValueMap{"NoAccess","ReadOnly","Unlock"}, Values{"NoAccess","ReadOnly","Unlock"}] string LockState;
     [Write, Description("Specifies the default link permission for the site collection. None - Respect the organization default link permission. View - Sets the default link permission for the site to 'view' permissions. Edit - Sets the default link permission for the site to 'edit' permissions."), ValueMap{"None", "View", "Edit"}, Values{"None", "View", "Edit"}] string DefaultLinkPermission;
+    [Write, Description("When set to TRUE, the DefaultSharingLinkType will be overriden and the default sharing link will a People with Existing Access link (which does not modify permissions). When set to FALSE (the default), the default sharing link type is controlled by the DefaultSharingLinkType parameter.")] boolean DefaultLinkToExistingAccess;
     [Write, Description("Specifies the default link type for the site collection. None - Respect the organization default sharing link type. AnonymousAccess - Sets the default sharing link for this site to an Anonymous Access or Anyone link. Internal - Sets the default sharing link for this site to the 'organization' link or company shareable link. Direct - Sets the default sharing link for this site to the 'Specific people' link."), ValueMap{"None", "AnonymousAccess", "Internal", "Direct"}, Values{"None", "AnonymousAccess", "Internal", "Direct"}] string DefaultSharingLinkType;
     [Write, Description("Disables App Views."), ValueMap{"Unknown", "Disabled", "NotDisabled"}, Values{"Unknown", "Disabled", "NotDisabled"}] string DisableAppViews;
     [Write, Description("Disables Company wide sharing links."), ValueMap{"Unknown", "Disabled", "NotDisabled"}, Values{"Unknown", "Disabled", "NotDisabled"}] string DisableCompanyWideSharingLinks;
     [Write, Description("Specifies the language of the new site collection. Defaults to the current language of the web connected to.")] uint32 LocaleId;
-    [Write, Description("Specifies the Geo/Region restrictions of this site."), ValueMap{"NoRestriction", "BlockMoveOnly", "BlockFull", "Unknown"}, Values{"NoRestriction", "BlockMoveOnly", "BlockFull", "Unknown"}] string RestrictedToGeo;
-    [Write, Description("Specifies the site design of the new site collection. Defaults to 'Topic'.")] string SiteDesign;
     [Write, Description("Determines whether the Add And Customize Pages right is denied on the site collection. For more information about permission levels, see User permissions and permission levels in SharePoint.")] boolean DenyAddAndCustomizePages;
     [Write, Description("Defines geo-restriction settings for this site"), ValueMap{"NoRestriction", "BlockMoveOnly", "BlockFull", "Unknown"}, Values{"NoRestriction", "BlockMoveOnly", "BlockFull", "Unknown"}] string RestrictedToRegion;
     [Write, Description("Specifies a list of email domains that is allowed for sharing with the external collaborators. Use the space character as the delimiter.")] string SharingAllowedDomainList;
@@ -30,8 +32,16 @@ class MSFT_SPOSite : OMI_BaseResource
     [Write, Description("Specifies the external sharing mode for domains."), ValueMap{"None","AllowList", "BlockList"}, Values{"None","AllowList", "BlockList"}] string SharingDomainRestrictionMode;
     [Write, Description("To enable the option to search for existing guest users at Site Collection Level, set this parameter to $true.")] boolean ShowPeoplePickerSuggestionsForGuestUsers;
     [Write, Description("Specifies that all anonymous/anyone links that have been created (or will be created) will expire after the set number of days. Only applies if OverrideTenantAnonymousLinkExpirationPolicy is set to true. To remove the expiration requirement, set the value to zero (0)")] uint32 AnonymousLinkExpirationInDays;
+    [Write, Description("Specifies that all external users will expire after the set number of days. Only applies if OverrideTenantExternalUserExpirationPolicy is set to true. To remove the expiration requirement, set the value to zero (0)")] uint32 ExternalUserExpirationInDays;
+
     [Write, Description("Disables or enables the Social Bar for Site Collection.")] boolean SocialBarOnSitePagesDisabled;
     [Write, Description("False - Respect the organization-level policy for anonymous or anyone link expiration. True - Override the organization-level policy for anonymous or anyone link expiration (can be more or less restrictive)")] boolean OverrideTenantAnonymousLinkExpirationPolicy;
+    [Write, Description("False - Respect the organization-level policy for external user expiration. True - Override the organization-level policy for external user expiration (can be more or less restrictive)")] boolean OverrideTenantExternalUserExpirationPolicy;
+
+    [Write, Description("This parameter can be used when the Conditional Access Policy is set to AllowLimitedAccess for both the organization-wide setting and the site-level setting."), ValueMap{"OfficeOnlineFilesOnly", "WebPreviewableFiles", "OtherFiles"}, Values{"OfficeOnlineFilesOnly", "WebPreviewableFiles", "OtherFiles"}] string LimitedAccessFileType;
+    [Write, Description("Specifies if this site is a hub site.")] boolean IsHubSite;
+    [Write, Description("Specifies the stored value of the site sharing capability. Note that the effective capability also depends on the tenant wide setting.")] string SiteDefinedSharingCapability;
+
     [Write, Description("Present ensures the site collection exists, absent ensures it is removed"), ValueMap{"Present","Absent"}, Values{"Present","Absent"}] string Ensure;
     [Write, Description("Credentials of the SharePoint Global Admin"), EmbeddedInstance("MSFT_Credential")] string GlobalAdminAccount;
     [Write, Description("Id of the Azure Active Directory application to authenticate with.")] String ApplicationId;
