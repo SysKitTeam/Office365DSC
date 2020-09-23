@@ -277,7 +277,7 @@ function Export-TargetResource
         GlobalAdminAccount    = $GlobalAdminAccount
     }
 
-    Write-Host "`r`n    [1/2] Public" -NoNewline
+    Write-Host "    |---[1/2] Public" -NoNewline
     $Results = Get-TargetResource @Params
     $dscContent = ""
     if ($null -ne $Results)
