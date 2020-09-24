@@ -100,9 +100,11 @@
         #    ModuleName      = "MSCloudLoginAssistant"
         #    RequiredVersion = "1.0.32"
         #},
+        # SysKit Trace currently uses an older version because of some issues
+        # will need to resolve them at some point
         @{
             ModuleName      = "ReverseDSC"
-            RequiredVersion = "2.0.0.6"
+            RequiredVersion = "2.0.0.2"
         },
         # SysKit Trace currently uses an older version because of some issues
         # will need to resolve them at some point
