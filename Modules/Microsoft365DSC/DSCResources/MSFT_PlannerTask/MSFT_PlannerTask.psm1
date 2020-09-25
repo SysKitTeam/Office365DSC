@@ -542,8 +542,18 @@ function Export-TargetResource
 
     [array]$groups = Get-AzureADGroup -All:$true
 
+    $embeddedResourceProps = @(
+        @{
+            PropertyName ="Attachments"
+            ResourceName = "MSFT_PlannerTaskAttachment"
+        },
+        @{
+            PropertyName ="Checklist"
+            ResourceName = "MSFT_PlannerTaskChecklistItem"
+        }
+    )
     $i = 1
-    $content = ''
+    $dscContent = ''
     foreach ($group in $groups)
     {
         Write-Host "    |---[$i/$($groups.Length)] $($group.DisplayName) - {$($group.ObjectID)}"
@@ -585,50 +595,26 @@ function Export-TargetResource
                     {
                         $result.Remove("AssignedUsers") | Out-Null
                     }
-                    $result.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
-                    if ($result.Attachments.Length -gt 0)
-                    {
-                        $result.Attachments = [Array](Convert-M365DSCPlannerTaskAssignmentToCIMArray `
-                            -Attachments $result.Attachments)
-                    }
-                    else
+
+                    if ($result.Attachments.Length -eq 0)
                     {
                         $result.Remove("Attachments") | Out-Null
                     }
 
-                    if ($result.Checklist.Length -gt 0)
-                    {
-                        $result.Checklist = [Array](Convert-M365DSCPlannerTaskChecklistToCIMArray `
-                            -Checklist $result.Checklist)
-                    }
-                    else
+                    if ($result.Checklist.Length -eq 0)
                     {
                         $result.Remove("Checklist") | Out-Null
                     }
 
-                    # Fix Notes which can have multiple lines
-                    $result.Notes = $result.Notes.Replace('"', '``"')
-                    $result.Notes = $result.Notes.Replace("&", "``&")
+                    $result = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
+                    -Results $result
+                    $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
+                        -ConnectionMode $ConnectionMode `
+                        -ModulePath $PSScriptRoot `
+                        -Results $result `
+                        -GlobalAdminAccount $GlobalAdminAccount `
+                        -PropertiesWithEmbeddedResources $embeddedResourceProps
 
-                    $content += "        PlannerTask " + (New-GUID).ToString() + "`r`n"
-                    $content += "        {`r`n"
-                    $currentDSCBlock = Get-DSCBlock -Params $result -ModulePath $PSScriptRoot
-                    $currentDSCBlock = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock `
-                        -ParameterName "GlobalAdminAccount"
-                    if ($result.Attachments.Length -gt 0)
-                    {
-                        $currentDSCBlock = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock `
-                            -ParameterName "Attachments" `
-                            -IsCIMArray $true
-                    }
-                    if ($result.Checklist.Length -gt 0)
-                    {
-                        $currentDSCBlock = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock `
-                            -ParameterName "Checklist" `
-                            -IsCIMArray $true
-                    }
-                    $content += $currentDSCBlock
-                    $content += "        }`r`n"
                     $k++
                     Write-Host $Global:M365DSCEmojiGreenCheckmark
                 }
@@ -641,7 +627,7 @@ function Export-TargetResource
         }
         $i++
     }
-    return $content
+    return $dscContent
 }
 
 function Test-M365DSCPlannerTaskCheckListValues
@@ -682,51 +668,6 @@ function Test-M365DSCPlannerTaskCheckListValues
         }
     }
     return $true
-}
-
-function Convert-M365DSCPlannerTaskAssignmentToCIMArray
-{
-    [CmdletBinding()]
-    [OutputType([System.String[]])]
-    Param(
-        [Parameter(Mandatory = $true)]
-        [System.Collections.HashTable[]]
-        $Attachments
-    )
-
-    $result = @()
-    foreach ($attachment in $Attachments)
-    {
-        $stringContent = "MSFT_PlannerTaskAttachment`r`n            {`r`n"
-        $stringContent += "                Uri = '$($attachment.Uri)'`r`n"
-        $stringContent += "                Alias = '$($attachment.Alias.Replace("'", "''"))'`r`n"
-        $stringContent += "                Type = '$($attachment.Type)'`r`n"
-        $StringContent += "            }`r`n"
-        $result += $stringContent
-    }
-    return $result
-}
-
-function Convert-M365DSCPlannerTaskChecklistToCIMArray
-{
-    [CmdletBinding()]
-    [OutputType([System.String[]])]
-    Param(
-        [Parameter(Mandatory = $true)]
-        [System.Collections.HashTable[]]
-        $Checklist
-    )
-
-    $result = @()
-    foreach ($checklistItem in $Checklist)
-    {
-        $stringContent = "MSFT_PlannerTaskChecklistItem`r`n            {`r`n"
-        $stringContent += "                Title = '$($checklistItem.Title.Replace("'", "''"))'`r`n"
-        $stringContent += "                Completed = `$$($checklistItem.Completed.ToString())`r`n"
-        $StringContent += "            }`r`n"
-        $result += $stringContent
-    }
-    return $result
 }
 
 function Get-M365DSCPlannerPlansFromGroup
