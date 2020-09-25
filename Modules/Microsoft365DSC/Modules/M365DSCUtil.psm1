@@ -2291,7 +2291,11 @@ function Get-M365DSCExportContentForResource
 
         [Parameter()]
         [System.String[]]
-        $PropertiesCimArrays
+        $PropertiesCimArrays,
+
+        [Parameter()]
+        [EmbbededResourceInfo[]]
+        $PropertiesWithEmbeddedResources
     )
     $OrganizationName = ""
     if ($ConnectionMode -eq 'ServicePrincipal')
@@ -2306,7 +2310,7 @@ function Get-M365DSCExportContentForResource
     $principal = $OrganizationName.Split('.')[0]
     $content = "        $ResourceName " + (New-GUID).ToString() + "`r`n"
     $content += "        {`r`n"
-    $partialContent = Get-DSCBlockEx -Params $Results -ModulePath $ModulePath -PropertiesWithAllowedSpecialCharacters $PropertiesWithAllowedSpecialCharacters
+    $partialContent = Get-DSCBlockEx -Params $Results -ModulePath $ModulePath -PropertiesWithAllowedSpecialCharacters $PropertiesWithAllowedSpecialCharacters -PropertiesWithEmbeddedResources $PropertiesWithEmbeddedResources
     if ($ConnectionMode -eq 'Credential')
     {
         $partialContent = Convert-DSCStringParamToVariable -DSCBlock $partialContent `
@@ -2558,6 +2562,12 @@ function Get-DSCPSTokenValue
     return $retVal
 }
 
+class EmbbededResourceInfo
+{
+    [string]$PropertyName
+    [string]$ResourceName
+}
+
 function Get-DSCBlockEx
 {
 <#
@@ -2590,7 +2600,15 @@ Hashtable that contains the list of Key properties and their values.
 
         [Parameter()]
         [System.String[]]
-        $PropertiesWithAllowedSpecialCharacters
+        $PropertiesWithAllowedSpecialCharacters,
+
+        [Parameter()]
+        [EmbbededResourceInfo[]]
+        $PropertiesWithEmbeddedResources,
+
+        [Parameter()]
+        [int]
+        $IndentValue = 0
     )
 
     $Sorted = $Params.GetEnumerator() | Sort-Object -Property Name
@@ -2631,7 +2649,23 @@ Hashtable that contains the list of Key properties and their values.
         $AllowSpecialCharachtersInValues = $null -ne $PropertiesWithAllowedSpecialCharacters -and $PropertiesWithAllowedSpecialCharacters.Contains($_) -or $_ -eq 'GlobalAdminAccount'
 
         $value = $null
-        if ($paramType -eq "System.String" -or $paramType -eq "String" -or $paramType -eq "Guid" -or $paramType -eq 'TimeSpan')
+        $propName = $_
+        if($null -ne $PropertiesWithEmbeddedResources -and $PropertiesWithEmbeddedResources.Length -gt 0 -and ($idx = [System.Array]::FindIndex($PropertiesWithEmbeddedResources, [Predicate[EmbbededResourceInfo]]{$args[0].PropertyName -eq $propName })) -ge 0)
+        {
+            $meta = $PropertiesWithEmbeddedResources[$idx]
+            if($paramType -eq "ArrayList" -or $paramType -eq "List``1" -or $paramType -eq "Hashtable[]")
+            {
+                $value = "@("
+                foreach($obj in $NewParams[$_])
+                {
+                    $value += "                  $($meta.ResourceName)`r`n            {`r`n"
+                    $value += Get-DSCBlockEx -ModulePath $ModulePath -Params $obj -IndentValue 4
+                    $value += "            }`r`n"
+                }
+                $value += "            )";
+            }
+        }
+        elseif ($paramType -eq "System.String" -or $paramType -eq "String" -or $paramType -eq "Guid" -or $paramType -eq 'TimeSpan')
         {
             $value = Get-DSCPSTokenValue -Value ($NewParams.Item($_)) -AllowSpecialCharachters $AllowSpecialCharachtersInValues
         }
@@ -2800,7 +2834,7 @@ Hashtable that contains the list of Key properties and their values.
         {
             $additionalSpaces += " "
         }
-        $dscBlock += "            " + $_  + $additionalSpaces + " = " + $value + ";`r`n"
+        $dscBlock += [string]::new(' ', 12 + $IndentValue) + $_  + $additionalSpaces + " = " + $value + ";`r`n"
     }
 
     return $dscBlock
