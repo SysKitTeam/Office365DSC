@@ -151,7 +151,7 @@ function Get-TeamEnabledOffice365Groups
     try
     {
         $allTeams = New-Object Collections.Generic.List[Microsoft.TeamsCmdlets.PowerShell.Custom.Model.Team]
-        $endpoint = "https://graph.microsoft.com"
+        $endpoint = Get-AzureEnvironmentEndpoint -AzureCloudEnvironmentName $Global:appIdentityParams.AzureCloudEnvironmentName -EndpointName "MsGraphEndpointResourceId"
         $accessToken = Get-AppIdentityAccessToken $endpoint
 
         $httpClient = [Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities]::GetClient("Bearer $accessToken", "Get-TeamTraceCustom")
@@ -195,7 +195,7 @@ function Get-AllTeamsCached
 
     $allTeamSettings = New-Object Collections.Generic.List[Microsoft.TeamsCmdlets.PowerShell.Custom.Model.TeamSettings]
 
-    $endpoint = "https://graph.microsoft.com"
+    $endpoint = Get-AzureEnvironmentEndpoint -AzureCloudEnvironmentName $Global:appIdentityParams.AzureCloudEnvironmentName -EndpointName "MsGraphEndpointResourceId"
 
     # The Get-Team cmdlet was not really written with throttling in mind
     # internally, they get the list of teams and then in parallel go to the /teams/{id} endpoint

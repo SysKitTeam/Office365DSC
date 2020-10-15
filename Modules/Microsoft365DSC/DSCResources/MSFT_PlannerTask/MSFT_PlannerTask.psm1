@@ -688,7 +688,8 @@ function Get-M365DSCPlannerPlansFromGroup
         $ApplicationId
     )
     $results = @()
-    $uri = "https://graph.microsoft.com/v1.0/groups/$GroupId/planner/plans"
+    $resourceURL = Get-AzureEnvironmentEndpoint -AzureCloudEnvironmentName $Global:appIdentityParams.AzureCloudEnvironmentName -EndpointName MsGraphEndpointResourceId
+    $uri = "$resourceURL/v1.0/groups/$GroupId/planner/plans"
     $taskResponse = Invoke-MSCloudLoginMicrosoftGraphAPI -CloudCredential $GlobalAdminAccount `
         -ApplicationId $ApplicationId `
         -Uri $uri `
@@ -721,7 +722,8 @@ function Get-M365DSCPlannerTasksFromPlan
         $ApplicationId
     )
     $results = @()
-    $uri = "https://graph.microsoft.com/v1.0/planner/plans/$PlanId/tasks"
+    $resourceURL = Get-AzureEnvironmentEndpoint -AzureCloudEnvironmentName $Global:appIdentityParams.AzureCloudEnvironmentName -EndpointName MsGraphEndpointResourceId
+    $uri = "$resourceURL/v1.0/planner/plans/$PlanId/tasks"
     $taskResponse = Invoke-MSCloudLoginMicrosoftGraphAPI -CloudCredential $GlobalAdminAccount `
         -ApplicationId $ApplicationId `
         -Uri $uri `
