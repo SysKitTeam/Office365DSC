@@ -268,11 +268,13 @@ function Start-M365DSCConfigurationExtract
 
     $i = 1
     $ResourcesToExport = @()
+    $resourceExtractionStates = @{}
     foreach ($ResourceModule in $AllResources)
     {
         try
         {
-            $resourceName = $ResourceModule.Name.Split('.')[0].Replace('MSFT_', '')
+            $msftResourceName = $ResourceModule.Name.Split('.')[0];
+            $resourceName = $msftResourceName.Replace('MSFT_', '')
             [array]$currentWorkload = $ResourceName.Substring(0, 2)
             switch ($currentWorkload.ToUpper())
             {
@@ -327,6 +329,8 @@ function Start-M365DSCConfigurationExtract
                     break
                 }
             }
+
+            $resourceExtractionStates[$msftResourceName] = 'NotIncluded'
             if (($null -ne $ComponentsToExtract -and
                 ($ComponentsToExtract -contains $resourceName -or $ComponentsToExtract -contains ("chck" + $resourceName))) -or
                 $AllComponents -or ($null -ne $Workloads -and $Workloads -contains $currentWorkload) -or `
@@ -334,6 +338,7 @@ function Start-M365DSCConfigurationExtract
                 ($ComponentsToExtractSpecified -or -not $ComponentsToSkip.Contains($resourceName)))
             {
                 $ResourcesToExport += $ResourceModule
+                $resourceExtractionStates[$msftResourceName] = 'ToBeLoaded'
             }
         }
         catch
@@ -345,7 +350,8 @@ function Start-M365DSCConfigurationExtract
     $platformSkipsNotified = @()
     foreach ($resource in $ResourcesToExport)
     {
-        $resourceName = $resource.Name.Split('.')[0].Replace('MSFT_', '')
+        $msftResourceName = $resource.Name.Split('.')[0];
+        $resourceName = $msftResourceName.Replace('MSFT_', '')
         try
         {
             $shouldSkipBecauseOfFailedPlatforms = $false
@@ -372,6 +378,7 @@ function Start-M365DSCConfigurationExtract
 
             if($shouldSkipBecauseOfFailedPlatforms)
             {
+                $resourceExtractionStates[$msftResourceName] = 'SkippedBecauseOfPreviousConnectionFailure'
                 Write-Verbose "Skipped [$resourceName] because of connection problems with the used MsCloudLogin platform"
                 continue;
             }
@@ -461,13 +468,23 @@ function Start-M365DSCConfigurationExtract
                 if($psParseErrorOccurred)
                 {
                     $exportString = ""
+                    $resourceExtractionStates[$msftResourceName] = 'PsParseError'
                 }
+                else
+                {
+                    $resourceExtractionStates[$msftResourceName] = 'Extracted'
+                }
+            }
+            else
+            {
+                $resourceExtractionStates[$msftResourceName] = 'NotIncluded'
             }
             $DSCContent += $exportString
             $exportString = $null
         }
         catch
         {
+            $resourceExtractionStates[$msftResourceName] = 'ExtractionError'
             $ex = $_.Exception
             $isMissingGrantError = $false
 
@@ -610,6 +627,10 @@ function Start-M365DSCConfigurationExtract
      # this is to avoid problems with unicode charachters when executing the generated ps1 file
     $Utf8BomEncoding = New-Object System.Text.UTF8Encoding $True
     [System.IO.File]::WriteAllText($outputDSCFile, $DSCContent, $Utf8BomEncoding)
+
+    # create a file containing the extraction states for all resources
+    $outputExtractionStatesFile = $OutputDSCPath + "ExtractionStates.json"
+    ConvertTo-Json -InputObject $resourceExtractionStates | Out-File -FilePath $outputExtractionStatesFile -Encoding utf8
 
     if (!$AzureAutomation)
     {
