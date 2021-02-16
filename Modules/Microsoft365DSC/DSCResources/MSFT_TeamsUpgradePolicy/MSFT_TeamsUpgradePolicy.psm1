@@ -64,6 +64,10 @@ function Get-TargetResource
     return @{
         Identity               = $Identity
         Users                  = $usersList
+        Description            = $policy.Description
+        Mode                   = $policy.Mode
+        NotifySfbUsers         = $policy.NotifySfbUsers
+        Action                 = $policy.Action
         MigrateMeetingsToTeams = $MigrateMeetingsToTeams
         GlobalAdminAccount     = $GlobalAdminAccount
     }
