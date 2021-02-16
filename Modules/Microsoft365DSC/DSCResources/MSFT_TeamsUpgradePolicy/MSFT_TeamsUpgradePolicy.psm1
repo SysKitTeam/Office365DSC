@@ -18,7 +18,10 @@ function Get-TargetResource
 
         [Parameter(Mandatory = $true)]
         [System.Management.Automation.PSCredential]
-        $GlobalAdminAccount
+        $GlobalAdminAccount,
+
+        [Parameter()]
+        $RawInputObject
     )
 
     #region Telemetry
@@ -33,8 +36,19 @@ function Get-TargetResource
     $ConnectionMode = New-M365DSCConnection -Platform 'SkypeForBusiness' `
         -InboundParameters $PSBoundParameters
 
-    $policy = Get-CsTeamsUpgradePolicy -Identity $Identity -ErrorAction SilentlyContinue
-    [array]$users = Get-CSOnlineUser | Where-Object -Filter {$_.TeamsUpgradePolicy -eq $Identity}
+    $policy = $null
+    [array]$users = $null
+    if ($null -ne $RawInputObject)
+    {
+        $policy = $RawInputObject.Policy
+        [array]$users = $RawInputObject.AllUsers | Where-Object -Filter { $_.TeamsUpgradePolicy -eq $Identity }
+
+    }
+    else
+    {
+        $policy = Get-CsTeamsUpgradePolicy -Identity $Identity -ErrorAction SilentlyContinue
+        [array]$users = $RawInputObject.AllUsers | Where-Object -Filter { $_.TeamsUpgradePolicy -eq $Identity }
+    }
 
     if ($null -eq $policy)
     {
@@ -130,9 +144,9 @@ function Test-TargetResource
     $ValuesToCheck.Remove('GlobalAdminAccount') | Out-Null
 
     $TestResult = Test-Microsoft365DSCParameterState -CurrentValues $CurrentValues `
-                                                  -Source $($MyInvocation.MyCommand.Source) `
-                                                  -DesiredValues $PSBoundParameters `
-                                                  -ValuesToCheck $ValuesToCheck.Keys
+        -Source $($MyInvocation.MyCommand.Source) `
+        -DesiredValues $PSBoundParameters `
+        -ValuesToCheck $ValuesToCheck.Keys
 
     Write-Verbose -Message "Test-TargetResource returned $TestResult"
 
@@ -167,6 +181,7 @@ function Export-TargetResource
     }
 
     [array]$policies = Get-CsTeamsUpgradePolicy
+    [array]$allUsers = Get-CSOnlineUser
     $i = 1
     $content = ''
     Write-Host "`r`n" -NoNewLine
@@ -176,6 +191,10 @@ function Export-TargetResource
         $params = @{
             Identity           = $policy.Identity.Replace("Tag:", "")
             GlobalAdminAccount = $GlobalAdminAccount
+            RawInputObject     = @{
+                Policy   = $policy
+                AllUsers = $allUsers
+            }
         }
         $result = Get-TargetResource @params
         $result.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
