@@ -42,7 +42,7 @@ function Get-TargetResource
         [System.String]
         $CertificateThumbprint,
 
-         [Parameter()]
+        [Parameter()]
         $RawInputObject
     )
 
@@ -393,7 +393,7 @@ function Export-TargetResource
                             $users = [System.Collections.ArrayList]:: new()
                             Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
                                 [array]$locUsers = Get-TeamUser -GroupId $team.GroupId
-                                if($locUsers)
+                                if ($locUsers)
                                 {
                                     $users.AddRange($locUsers)
                                 }
@@ -424,7 +424,7 @@ function Export-TargetResource
                                 {
                                     $getParams = @{
                                         TeamName              = $team.DisplayName
-                                        TeamMailNickName   = $team.MailNickName
+                                        TeamMailNickName      = $team.MailNickName
                                         User                  = $user.User
                                         ApplicationId         = $ApplicationId
                                         TenantId              = $TenantId

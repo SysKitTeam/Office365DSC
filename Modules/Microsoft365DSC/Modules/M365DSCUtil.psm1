@@ -1443,6 +1443,12 @@ function Start-DSCInitializedJob
 
     $msloginAssistentPath = (Get-Module MSCloudLoginAssistant).Path.Replace("psm1", "psd1")
     $setupJobScript = " Import-Module '$msloginAssistentPath' -Force | Out-Null;"
+
+    # an explicit import for the teams module because of some problems with missing .net types when used inside a PSJob
+    # this only occurs because they are accessed directly, not through a cmdlet from the teams module
+    $teamsModuleVersion = (Get-Module MicrosoftTeams).Version
+    $setupJobScript += " Import-Module MicrosoftTeams -RequiredVersion $teamsModuleVersion -Force | Out-Null;"
+
     if ($Global:appIdentityParams)
     {
         $entropyStr = [string]::Join(', ', $Global:appIdentityParams.TokenCacheEntropy)
