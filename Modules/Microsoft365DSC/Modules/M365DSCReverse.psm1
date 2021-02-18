@@ -684,7 +684,7 @@ function Remove-RemoteSessions
         # this code is basically copy pasted from Disconnect-ExchangeOnline
         # the reason why we are not using Disconnect-ExchangeOnline is because it asks for a confirmation and $ConfirmPreference = 'None' does nothing, at least when running fron inside the script
         # inside a powershell window $ConfirmPreference = 'None' works as expected, but not when running within Trace or debugging in VSCode
-        $existingPSSession = Get-PSSession | Where-Object { $_.ConfigurationName -like "Microsoft.Exchange" -and $_.Name -like "ExchangeOnlineInternalSession*" }
+        $existingPSSession = Get-PSSession | Where-Object { ($_.ConfigurationName -like "Microsoft.Exchange" -and $_.Name -like "ExchangeOnlineInternalSession*") -or $_.Name -like 'SfBPowerShellSession*' }
 
         if ($existingPSSession.count -gt 0)
         {
