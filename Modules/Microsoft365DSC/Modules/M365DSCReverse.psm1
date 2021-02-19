@@ -332,7 +332,7 @@ function Start-M365DSCConfigurationExtract
 
             $resourceExtractionStates[$msftResourceName] = 'NotIncluded'
             if (($null -ne $ComponentsToExtract -and
-                ($ComponentsToExtract -contains $resourceName -or $ComponentsToExtract -contains ("chck" + $resourceName))) -or
+                    ($ComponentsToExtract -contains $resourceName -or $ComponentsToExtract -contains ("chck" + $resourceName))) -or
                 $AllComponents -or ($null -ne $Workloads -and $Workloads -contains $currentWorkload) -or `
                 ($null -eq $ComponentsToExtract -and $null -eq $Workloads) -and `
                 ($ComponentsToExtractSpecified -or -not $ComponentsToSkip.Contains($resourceName)))
@@ -356,12 +356,12 @@ function Start-M365DSCConfigurationExtract
         {
             $shouldSkipBecauseOfFailedPlatforms = $false
             [array]$usedPlatforms = Get-ResourcePlatformUsage -Resource $resourceName -ResourceModuleFilePath $resource.FullName
-            foreach($platform in $usedPlatforms)
+            foreach ($platform in $usedPlatforms)
             {
                 # we will skip PnP if there was a problem connecting to a specific site
                 # it could be a permissions issue
                 # if it was a problem with connecting to the admin site, then we know that all else will fail as well so no need to continue
-                if($platform -eq 'PnP' -and $null -ne $Global:SPOAdminUrl -and $Global:SPOConnectionUrl -ne $Global:SPOAdminUrl)
+                if ($platform -eq 'PnP' -and $null -ne $Global:SPOAdminUrl -and $Global:SPOConnectionUrl -ne $Global:SPOAdminUrl)
                 {
                     continue
                 }
@@ -369,14 +369,14 @@ function Start-M365DSCConfigurationExtract
                 Write-Verbose "The isConnectionAvailable flag is $isAvailable for $platform"
                 $shouldSkipBecauseOfFailedPlatforms = $shouldSkipBecauseOfFailedPlatforms -or !$isAvailable
                 Write-Verbose "The shouldskip flag is $shouldSkipBecauseOfFailedPlatforms for $platform"
-                if(!$isAvailable -and !$platformSkipsNotified.Contains($platform))
+                if (!$isAvailable -and !$platformSkipsNotified.Contains($platform))
                 {
                     Write-Error "The [$platform] connection has failed and all of the related resources will be skipped to avoid unnecessary errors."
                     $platformSkipsNotified += $platform
                 }
             }
 
-            if($shouldSkipBecauseOfFailedPlatforms)
+            if ($shouldSkipBecauseOfFailedPlatforms)
             {
                 $resourceExtractionStates[$msftResourceName] = 'SkippedBecauseOfPreviousConnectionFailure'
                 Write-Verbose "Skipped [$resourceName] because of connection problems with the used MsCloudLogin platform"
@@ -394,7 +394,7 @@ function Start-M365DSCConfigurationExtract
             $CertPasswordExists = (Get-Command 'Export-TargetResource').Parameters.Keys.Contains("CertificatePassword")
 
             $parameters = @{}
-            if ($GlobalAdminExists-and -not [System.String]::IsNullOrEmpty($GlobalAdminAccount))
+            if ($GlobalAdminExists -and -not [System.String]::IsNullOrEmpty($GlobalAdminAccount))
             {
                 $parameters.Add("GlobalAdminAccount", $GlobalAdminAccount)
             }
@@ -444,14 +444,14 @@ function Start-M365DSCConfigurationExtract
                     [System.Management.Automation.Language.Token[]]$tokens = $null;
                     [System.Management.Automation.Language.ParseError[]]$parseErrors = $null;
                     [void][System.Management.Automation.Language.Parser]::ParseInput($exportString, [ref]$tokens, [ref]$parseErrors)
-                    if($parseErrors.Length -gt 0)
+                    if ($parseErrors.Length -gt 0)
                     {
                         Write-Error "The [$resourceName] resource encountered an error and will not be available in the extracted data"
                         Write-Verbose "The [$resourceName] had parse errors"
                         Write-Verbose "#######PARSE ERRORS START####################"
-                        foreach($parseError in $parseErrors)
+                        foreach ($parseError in $parseErrors)
                         {
-                           Write-Verbose $parseError
+                            Write-Verbose $parseError
                         }
                         Write-Verbose "#######PARSE INPUT WITH ERRORS START######################"
                         Write-Verbose $exportString
@@ -465,7 +465,7 @@ function Start-M365DSCConfigurationExtract
                     Write-Error $_
                 }
 
-                if($psParseErrorOccurred)
+                if ($psParseErrorOccurred)
                 {
                     $exportString = ""
                     $resourceExtractionStates[$msftResourceName] = 'PsParseError'
@@ -488,17 +488,17 @@ function Start-M365DSCConfigurationExtract
             $ex = $_.Exception
             $isMissingGrantError = $false
 
-            while($null -ne $ex -and $ex.GetType().FullName -ne "Microsoft.IdentityModel.Clients.ActiveDirectory.AdalServiceException")
+            while ($null -ne $ex -and $ex.GetType().FullName -ne "Microsoft.IdentityModel.Clients.ActiveDirectory.AdalServiceException")
             {
                 $ex = $ex.InnerException
             }
 
-            if($null -ne $ex -and $ex.ErrorCode -eq "invalid_grant" -and $null -ne $ex.ServiceErrorCodes -and $ex.ServiceErrorCodes.Contains("65001"))
+            if ($null -ne $ex -and $ex.ErrorCode -eq "invalid_grant" -and $null -ne $ex.ServiceErrorCodes -and $ex.ServiceErrorCodes.Contains("65001"))
             {
                 $isMissingGrantError = $true
             }
 
-            if($isMissingGrantError -and $currentWorkload -eq 'PP')
+            if ($isMissingGrantError -and $currentWorkload -eq 'PP')
             {
                 Write-Verbose "PowerApps service app permissions are not granted. The enteriprise application is most likely missing.`nVisit the PowerApps admin center to get it created and rerun the Trace Configuration Wizard"
 
@@ -509,13 +509,18 @@ function Start-M365DSCConfigurationExtract
             {
                 New-M365DSCLogEntry -Error $_ -Message $ResourceModule.Name -Source "[O365DSCReverse]$($ResourceModule.Name)"
             }
-		}
+        }
         finally
         {
             $WarningPreference = $DefaultWarningPreference;
             $VerbosePreference = $DefaultVerbosePreference;
-		}
+        }
     }
+
+
+    # dont' leave dangling remote sessions, there can only be a couple of them for EXO and SC
+    Remove-RemoteSessions
+
 
     # Close the Node and Configuration declarations
     $DSCContent += "    }`r`n"
@@ -550,7 +555,7 @@ function Start-M365DSCConfigurationExtract
     {
         if (-not [System.String]::IsNullOrEmpty($CertificatePassword))
         {
-            $certCreds =$Global:CredsRepo[0]
+            $certCreds = $Global:CredsRepo[0]
             $credsContent = ""
             $credsContent += "        " + (Resolve-Credentials $certCreds) + " = Get-Credential -Message `"Certificate Password`""
             $credsContent += "`r`n"
@@ -624,7 +629,7 @@ function Start-M365DSCConfigurationExtract
         $outputDSCFile = $OutputDSCPath + "M365TenantConfig.ps1"
     }
 
-     # this is to avoid problems with unicode charachters when executing the generated ps1 file
+    # this is to avoid problems with unicode charachters when executing the generated ps1 file
     $Utf8BomEncoding = New-Object System.Text.UTF8Encoding $True
     [System.IO.File]::WriteAllText($outputDSCFile, $DSCContent, $Utf8BomEncoding)
 
@@ -665,6 +670,62 @@ function Start-M365DSCConfigurationExtract
     }
 }
 
+
+function Remove-RemoteSessions
+{
+    $prevConfirmPreference = $ConfirmPreference
+    try
+    {
+        $ConfirmPreference = 'None'
+
+        # this will disconnect all of the Exhange but also all of the Security and Compliance sessions
+        #Disconnect-ExchangeOnline
+
+        # this code is basically copy pasted from Disconnect-ExchangeOnline
+        # the reason why we are not using Disconnect-ExchangeOnline is because it asks for a confirmation and $ConfirmPreference = 'None' does nothing, at least when running fron inside the script
+        # inside a powershell window $ConfirmPreference = 'None' works as expected, but not when running within Trace or debugging in VSCode
+        $existingPSSession = Get-PSSession | Where-Object { ($_.ConfigurationName -like "Microsoft.Exchange" -and $_.Name -like "ExchangeOnlineInternalSession*") -or $_.Name -like 'SfBPowerShellSession*' }
+
+        if ($existingPSSession.count -gt 0)
+        {
+            for ($index = 0; $index -lt $existingPSSession.count; $index++)
+            {
+                $session = $existingPSSession[$index]
+                Remove-PSSession -session $session
+
+                # Remove any previous modules loaded because of the current PSSession
+                if ($null -ne $session.PreviousModuleName)
+                {
+                    if ((Get-Module $session.PreviousModuleName).Count -ne 0)
+                    {
+                        Remove-Module -Name $session.PreviousModuleName -ErrorAction SilentlyContinue
+                    }
+
+                    $session.PreviousModuleName = $null
+                }
+
+                # Remove any leaked module in case of removal of broken session object
+                if ($null -ne $session.CurrentModuleName)
+                {
+                    if ((Get-Module $session.CurrentModuleName).Count -ne 0)
+                    {
+                        Remove-Module -Name $session.CurrentModuleName -ErrorAction SilentlyContinue
+                    }
+                }
+            }
+        }
+    }
+    catch
+    {
+        Write-Error "Error while disconnecting remote sessions"
+        Write-Error $_
+    }
+    finally
+    {
+        $ConfirmPreference = $prevConfirmPreference
+    }
+}
+
 function Check-PlatformAvailability
 {
     [CmdletBinding()]
@@ -695,10 +756,10 @@ function Get-ResourcePlatformUsage
     $matches = [Regex]::Matches($fileContent, '-Platform\s+''?(?<platform>\w+)''?', [ System.Text.RegularExpressions.RegexOptions]::IgnoreCase);
 
     $platforms = @()
-    foreach($match in $matches)
+    foreach ($match in $matches)
     {
         $platform = $match.Groups["platform"].Value
-        if($platforms.Contains($platform))
+        if ($platforms.Contains($platform))
         {
             continue
         }
