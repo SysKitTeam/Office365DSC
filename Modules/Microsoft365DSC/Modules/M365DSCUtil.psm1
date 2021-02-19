@@ -229,11 +229,11 @@ function Get-AllTeamsCached
         }
         catch
         {
-            $missingGroup = ($null -ne $_.Exception -and $_.Exception.ErrorCode -eq 404) -or ($null -ne $_.Exception -and $null -ne $_.Exception.InnerException -and $_.Exception.InnerException.ErrorCode -eq 404);
+            $missingTeam = ($null -ne $_.Exception -and $_.Exception.ErrorCode -eq 404) -or ($null -ne $_.Exception -and $null -ne $_.Exception.InnerException -and $_.Exception.InnerException.ErrorCode -eq 404);
 
-            # write the output only if the group is not missing
+            # write the output only if the teams is not missing
             # if it's missing then it was probably deleted or something like that
-            if (!$missingGroup)
+            if (!$missingTeam)
             {
                 # we write it with verbose because if one team retrieval fails, they probably all will. No teams is hard to miss in the output data so the error should be evident
                 Write-Verbose $_
