@@ -136,80 +136,19 @@ function Start-M365DSCConfigurationExtract
 
     $AzureAutomation = $false
     $version = (Get-Module 'Microsoft365DSC').Version
-    $DSCContent = "# Generated with Microsoft365DSC version $version`r`n"
-    $DSCContent += "# For additional information on how to use Microsoft365DSC, please visit https://aka.ms/M365DSC`r`n"
-    if ($ConnectionMode -eq 'Credential')
-    {
-        $DSCContent += "param (`r`n"
-        $DSCContent += "    [parameter()]`r`n"
-        $DSCContent += "    [System.Management.Automation.PSCredential]`r`n"
-        $DSCContent += "    `$GlobalAdminAccount`r`n"
-        $DSCContent += ")`r`n`r`n"
-    }
-    else
-    {
-        if (-not [System.String]::IsNullOrEmpty($CertificatePassword))
-        {
-            $DSCContent += "param (`r`n"
-            $DSCContent += "    [parameter()]`r`n"
-            $DSCContent += "    [System.Management.Automation.PSCredential]`r`n"
-            $DSCContent += "    `$CertificatePassword`r`n"
-            $DSCContent += ")`r`n`r`n"
-        }
-    }
-
-    if (-not [System.String]::IsNullOrEmpty($FileName))
-    {
-        $FileParts = $FileName.Split('.')
-
-        if ([System.String]::IsNullOrEmpty($ConfigurationName))
-        {
-            $ConfigurationName = $FileName.Replace('.' + $FileParts[$FileParts.Length - 1], "")
-        }
-    }
-    if ([System.String]::IsNullOrEmpty($ConfigurationName))
-    {
-        $ConfigurationName = 'M365TenantConfig'
-    }
-    $DSCContent += "Configuration $ConfigurationName`r`n{`r`n"
 
     if ($ConnectionMode -eq 'Credential')
     {
-        $DSCContent += "    param (`r`n"
-        $DSCContent += "        [parameter()]`r`n"
-        $DSCContent += "        [System.Management.Automation.PSCredential]`r`n"
-        $DSCContent += "        `$GlobalAdminAccount`r`n"
-        $DSCContent += "    )`r`n`r`n"
-        $DSCContent += "    if (`$null -eq `$GlobalAdminAccount)`r`n"
-        $DSCContent += "    {`r`n"
-        $DSCContent += "        <# Credentials #>`r`n"
-        $DSCContent += "    }`r`n"
-        $DSCContent += "    else`r`n"
-        $DSCContent += "    {`r`n"
-        $DSCContent += "        `$Credsglobaladmin = `$GlobalAdminAccount`r`n"
-        $DSCContent += "    }`r`n`r`n"
-        $DSCContent += "    `$OrganizationName = `$Credsglobaladmin.UserName.Split('@')[1]`r`n"
+        # Add the GlobalAdminAccount to the Credentials List
+        Save-Credentials -UserName "globaladmin"
     }
     else
     {
-        if (-not [System.String]::IsNullOrEmpty($CertificatePassword))
-        {
-            $DSCContent += "    param (`r`n"
-            $DSCContent += "        [parameter()]`r`n"
-            $DSCContent += "        [System.Management.Automation.PSCredential]`r`n"
-            $DSCContent += "        `$CertificatePassword`r`n"
-            $DSCContent += "    )`r`n`r`n"
-            $DSCContent += "    if (`$null -eq `$CertificatePassword)`r`n"
-            $DSCContent += "    {`r`n"
-            $DSCContent += "        <# Credentials #>`r`n"
-            $DSCContent += "    }`r`n"
-            $DSCContent += "    else`r`n"
-            $DSCContent += "    {`r`n"
-            $DSCContent += "        `$CredsCertificatePassword = `$CertificatePassword`r`n"
-            $DSCContent += "    }`r`n`r`n"
-        }
+        Save-Credentials -UserName "certificatepassword"
+    }
 
-        $DSCContent += "    `$OrganizationName = `$ConfigurationData.NonNodeData.OrganizationName`r`n"
+    if ($ConnectionMode -ne 'Credential')
+    {
         Add-ConfigurationDataEntry -Node "NonNodeData" `
             -Key "OrganizationName" `
             -Value $organization `
@@ -242,29 +181,75 @@ function Start-M365DSCConfigurationExtract
                 -Description "Thumbprint of the certificate to use for authentication"
         }
     }
-    $DSCContent += "    Import-DscResource -ModuleName Microsoft365DSC`r`n`r`n"
-    $DSCContent += "    Node localhost`r`n"
-    $DSCContent += "    {`r`n"
 
     Add-ConfigurationDataEntry -Node "localhost" `
         -Key "ServerNumber" `
         -Value "0" `
         -Description "Default Value Used to Ensure a Configuration Data File is Generated"
 
-    if ($ConnectionMode -eq 'Credential')
+
+    $shouldOpenOutputDirectory = !$Quiet
+    #region Prompt the user for a location to save the extract and generate the files
+    if ([System.String]::IsNullOrEmpty($Path))
     {
-        # Add the GlobalAdminAccount to the Credentials List
-        Save-Credentials -UserName "globaladmin"
+        $shouldOpenOutputDirectory = $true
+        $OutputDSCPath = Read-Host "Destination Path"
     }
     else
     {
-        Save-Credentials -UserName "certificatepassword"
+        $OutputDSCPath = $Path
     }
+
+    if ([System.String]::IsNullOrEmpty($OutputDSCPath))
+    {
+        $OutputDSCPath = '.'
+    }
+
+    while ((Test-Path -Path $OutputDSCPath -PathType Container -ErrorAction SilentlyContinue) -eq $false)
+    {
+        try
+        {
+            Write-Information "Directory `"$OutputDSCPath`" doesn't exist; creating..."
+            New-Item -Path $OutputDSCPath -ItemType Directory | Out-Null
+            if ($?)
+            {
+                break
+            }
+        }
+        catch
+        {
+            Write-Warning "$($_.Exception.Message)"
+            Write-Warning "Could not create folder $OutputDSCPath!"
+        }
+        $OutputDSCPath = Read-Host "Please Provide Output Folder for DSC Configuration (Will be Created as Necessary)"
+    }
+    <## Ensures the path we specify ends with a Slash, in order to make sure the resulting file path is properly structured. #>
+    if (!$OutputDSCPath.EndsWith("\") -and !$OutputDSCPath.EndsWith("/"))
+    {
+        $OutputDSCPath += "\"
+    }
+    #endregion
+
+
+
+    $sw = New-Object System.IO.StringWriter
+    Write-DscStartFileContents -Writer $sw
+    $DSCContent = $sw.ToString()
+
+
+
+
+
+
+
 
     $ResourcesPath = Join-Path -Path $PSScriptRoot `
         -ChildPath "..\DSCResources\" `
         -Resolve
     $AllResources = Get-ChildItem $ResourcesPath -Recurse | Where-Object { $_.Name -like 'MSFT_*.psm1' }
+
+
+
 
     $i = 1
     $ResourcesToExport = @()
@@ -482,6 +467,30 @@ function Start-M365DSCConfigurationExtract
                 $resourceExtractionStates[$msftResourceName] = 'NotIncluded'
             }
             $DSCContent += $exportString
+
+            $fileStream = $null
+            $sw = $null
+            try
+            {
+                $resOutputFilePath = Join-Path $OutputDSCPath "$($resourceName)_Config.ps1"
+                $fileStream = [System.IO.File]::OpenWrite("$resOutputFilePath")
+                $sw = New-Object System.IO.StreamWriter -ArgumentList $fileStream
+                Write-DscStartFileContents -Writer $sw
+                $sw.Write($exportString)
+                Write-DscEndingFileContents $sw
+            }
+            finally
+            {
+                if ($sw)
+                {
+                    $sw.Dispose()
+                }
+                if ($fileStream)
+                {
+                    $fileStream.Dispose()
+                }
+            }
+
             $exportString = $null
         }
         catch
@@ -528,51 +537,12 @@ function Start-M365DSCConfigurationExtract
 
 
     # Close the Node and Configuration declarations
-    $DSCContent += "    }`r`n"
-    $DSCContent += "}`r`n"
 
-    if ($ConnectionMode -eq 'Credential')
-    {
-        #region Add the Prompt for Required Credentials at the top of the Configuration
-        $credsContent = ""
-        foreach ($credential in $Global:CredsRepo)
-        {
-            if (!$credential.ToLower().StartsWith("builtin"))
-            {
-                if (!$AzureAutomation)
-                {
-                    $credsContent += "        " + (Resolve-Credentials $credential) + " = Get-Credential -Message `"Global Admin credentials`"`r`n"
-                }
-                else
-                {
-                    $resolvedName = (Resolve-Credentials $credential)
-                    $credsContent += "    " + $resolvedName + " = Get-AutomationPSCredential -Name " + ($resolvedName.Replace("$", "")) + "`r`n"
-                }
-            }
-        }
-        $credsContent += "`r`n"
-        $startPosition = $DSCContent.IndexOf("<# Credentials #>") + 19
-        $DSCContent = $DSCContent.Insert($startPosition, $credsContent)
-        $DSCContent += "$ConfigurationName -ConfigurationData .\ConfigurationData.psd1 -GlobalAdminAccount `$GlobalAdminAccount"
-        #endregion
-    }
-    else
-    {
-        if (-not [System.String]::IsNullOrEmpty($CertificatePassword))
-        {
-            $certCreds = $Global:CredsRepo[0]
-            $credsContent = ""
-            $credsContent += "        " + (Resolve-Credentials $certCreds) + " = Get-Credential -Message `"Certificate Password`""
-            $credsContent += "`r`n"
-            $startPosition = $DSCContent.IndexOf("<# Credentials #>") + 19
-            $DSCContent = $DSCContent.Insert($startPosition, $credsContent)
-            $DSCContent += "$ConfigurationName -ConfigurationData .\ConfigurationData.psd1 -CertificatePassword `$CertificatePassword"
-        }
-        else
-        {
-            $DSCContent += "$ConfigurationName -ConfigurationData .\ConfigurationData.psd1"
-        }
-    }
+
+    $endingWriter = New-Object System.IO.StringWriter
+    Write-DscEndingFileContents $endingWriter
+
+    $DSCContent += $endingWriter.ToString()
 
     #region Benchmarks
     $M365DSCExportEndTime = [System.DateTime]::Now
@@ -581,48 +551,6 @@ function Start-M365DSCConfigurationExtract
     Write-Host "$($Global:M365DSCEmojiHourglass) Export took {" -NoNewLine
     Write-Host "$($timeTaken.TotalSeconds) seconds" -NoNewLine -ForegroundColor Cyan
     Write-Host "}"
-    #endregion
-
-    $shouldOpenOutputDirectory = !$Quiet
-    #region Prompt the user for a location to save the extract and generate the files
-    if ([System.String]::IsNullOrEmpty($Path))
-    {
-        $shouldOpenOutputDirectory = $true
-        $OutputDSCPath = Read-Host "Destination Path"
-    }
-    else
-    {
-        $OutputDSCPath = $Path
-    }
-
-    if ([System.String]::IsNullOrEmpty($OutputDSCPath))
-    {
-        $OutputDSCPath = '.'
-    }
-
-    while ((Test-Path -Path $OutputDSCPath -PathType Container -ErrorAction SilentlyContinue) -eq $false)
-    {
-        try
-        {
-            Write-Information "Directory `"$OutputDSCPath`" doesn't exist; creating..."
-            New-Item -Path $OutputDSCPath -ItemType Directory | Out-Null
-            if ($?)
-            {
-                break
-            }
-        }
-        catch
-        {
-            Write-Warning "$($_.Exception.Message)"
-            Write-Warning "Could not create folder $OutputDSCPath!"
-        }
-        $OutputDSCPath = Read-Host "Please Provide Output Folder for DSC Configuration (Will be Created as Necessary)"
-    }
-    <## Ensures the path we specify ends with a Slash, in order to make sure the resulting file path is properly structured. #>
-    if (!$OutputDSCPath.EndsWith("\") -and !$OutputDSCPath.EndsWith("/"))
-    {
-        $OutputDSCPath += "\"
-    }
     #endregion
 
     if (-not [System.String]::IsNullOrEmpty($FileName))
@@ -804,4 +732,107 @@ function Get-ResourcePlatformUsage
     }
 
     return $platforms
+}
+
+function Write-DscStartFileContents
+{
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.IO.TextWriter]
+        $Writer
+    )
+    $Writer.WriteLine("# Generated with Microsoft365DSC version $version")
+    $Writer.WriteLine("# For additional information on how to use Microsoft365DSC, please visit https://aka.ms/M365DSC")
+    if ($ConnectionMode -eq 'Credential')
+    {
+        $Writer.WriteLine("param (")
+        $Writer.WriteLine("    [parameter()]")
+        $Writer.WriteLine("    [System.Management.Automation.PSCredential]")
+        $Writer.WriteLine("    `$GlobalAdminAccount")
+        $Writer.WriteLine(")`r`n")
+    }
+    else
+    {
+        if (-not [System.String]::IsNullOrEmpty($CertificatePassword))
+        {
+            $Writer.WriteLine("param (")
+            $Writer.WriteLine("    [parameter()]")
+            $Writer.WriteLine("    [System.Management.Automation.PSCredential]")
+            $Writer.WriteLine("    `$CertificatePassword")
+            $Writer.WriteLine(")`r`n")
+        }
+    }
+
+    # if (-not [System.String]::IsNullOrEmpty($FileName))
+    # {
+    #     $FileParts = $FileName.Split('.')
+
+    #     if ([System.String]::IsNullOrEmpty($ConfigurationName))
+    #     {
+    #         $ConfigurationName = $FileName.Replace('.' + $FileParts[$FileParts.Length - 1], "")
+    #     }
+    # }
+
+    $ConfigurationName = 'M365TenantConfig'
+
+    $Writer.WriteLine("Configuration $ConfigurationName`r`n{")
+
+    if ($ConnectionMode -eq 'Credential')
+    {
+        $Writer.WriteLine("    param (")
+        $Writer.WriteLine("        [parameter()]")
+        $Writer.WriteLine("        [System.Management.Automation.PSCredential]")
+        $Writer.WriteLine("        `$GlobalAdminAccount")
+        $Writer.WriteLine("    )`r`n")
+        $Writer.WriteLine("    if (`$null -eq `$GlobalAdminAccount)")
+        $Writer.WriteLine("    {")
+        $Writer.WriteLine("        <# Credentials #>")
+        $Writer.WriteLine("    }")
+        $Writer.WriteLine("    else")
+        $Writer.WriteLine("    {")
+        $Writer.WriteLine("        `$Credsglobaladmin = `$GlobalAdminAccount")
+        $Writer.WriteLine("    }`r`n")
+        $Writer.WriteLine("    `$OrganizationName = `$Credsglobaladmin.UserName.Split('@')[1]")
+    }
+    else
+    {
+        if (-not [System.String]::IsNullOrEmpty($CertificatePassword))
+        {
+            $Writer.WriteLine("    param (")
+            $Writer.WriteLine("        [parameter()]")
+            $Writer.WriteLine("        [System.Management.Automation.PSCredential]")
+            $Writer.WriteLine("        `$CertificatePassword")
+            $Writer.WriteLine("    )`r`n")
+            $Writer.WriteLine("    if (`$null -eq `$CertificatePassword)")
+            $Writer.WriteLine("    {")
+            $Writer.WriteLine("        <# Credentials #>")
+            $Writer.WriteLine("    }")
+            $Writer.WriteLine("    else")
+            $Writer.WriteLine("    {")
+            $Writer.WriteLine("        `$CredsCertificatePassword = `$CertificatePassword")
+            $Writer.WriteLine("    }`r`n")
+        }
+
+        $Writer.WriteLine("    `$OrganizationName = `$ConfigurationData.NonNodeData.OrganizationName")
+    }
+    $Writer.WriteLine("    Import-DscResource -ModuleName Microsoft365DSC`r`n")
+    $Writer.WriteLine("    Node localhost")
+    $Writer.WriteLine("    {")
+}
+
+function Write-DscEndingFileContents
+{
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.IO.TextWriter]
+        $Writer
+    )
+
+    $ConfigurationName = 'M365TenantConfig'
+
+    # Close the Node and Configuration declarations
+    $writer.WriteLine("    }")
+    $writer.WriteLine("}")
+
+    $writer.WriteLine("$ConfigurationName -ConfigurationData .\ConfigurationData.psd1")
 }
