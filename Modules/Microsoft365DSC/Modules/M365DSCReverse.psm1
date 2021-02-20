@@ -348,8 +348,10 @@ function Start-M365DSCConfigurationExtract
     }
 
     $platformSkipsNotified = @()
+    $resourceTimeTotalTaken = @{}
     foreach ($resource in $ResourcesToExport)
     {
+        $stopWatch = [system.diagnostics.stopwatch]::StartNew()
         $msftResourceName = $resource.Name.Split('.')[0];
         $resourceName = $msftResourceName.Replace('MSFT_', '')
         try
@@ -512,9 +514,12 @@ function Start-M365DSCConfigurationExtract
         }
         finally
         {
+            $stopWatch.Stop()
             $WarningPreference = $DefaultWarningPreference;
             $VerbosePreference = $DefaultVerbosePreference;
         }
+
+        $resourceTimeTotalTaken[$msftResourceName] = $stopWatch.Elapsed.TotalSeconds
     }
 
 
@@ -633,9 +638,7 @@ function Start-M365DSCConfigurationExtract
     $Utf8BomEncoding = New-Object System.Text.UTF8Encoding $True
     [System.IO.File]::WriteAllText($outputDSCFile, $DSCContent, $Utf8BomEncoding)
 
-    # create a file containing the extraction states for all resources
-    $outputExtractionStatesFile = $OutputDSCPath + "ExtractionStates.json"
-    ConvertTo-Json -InputObject $resourceExtractionStates | Out-File -FilePath $outputExtractionStatesFile -Encoding utf8
+    Write-ExtractionStates -OutputDSCPath $OutputDSCPath -ResourceExtractionStates $resourceExtractionStates -ResourceTimeTotalTaken $resourceTimeTotalTaken
 
     if (!$AzureAutomation)
     {
@@ -724,6 +727,40 @@ function Remove-RemoteSessions
     {
         $ConfirmPreference = $prevConfirmPreference
     }
+}
+
+function Write-ExtractionStates
+{
+    param(
+
+        [Parameter(Mandatory = $true)]
+        $OutputDSCPath,
+
+        [Parameter(Mandatory = $true)]
+        $ResourceExtractionStates,
+
+        [Parameter(Mandatory = $true)]
+        $ResourceTimeTotalTaken
+    )
+
+    # create a file containing the extraction states for all resources
+    $outputExtractionStatesFile = Join-Path $OutputDSCPath "ExtractionStates.json"
+
+    $resultingExtractionStatesObject = @{}
+    foreach ($key in $ResourceExtractionStates.Keys)
+    {
+        $timeTaken = 0
+        if ($ResourceTimeTotalTaken.ContainsKey($key))
+        {
+            $timeTaken = $ResourceTimeTotalTaken[$key]
+        }
+        $resultingExtractionStatesObject[$key] = @{
+            State     = $ResourceExtractionStates[$key]
+            TimeTaken = $timeTaken
+        }
+    }
+
+    ConvertTo-Json -InputObject $resultingExtractionStatesObject | Out-File -FilePath $outputExtractionStatesFile -Encoding utf8
 }
 
 function Check-PlatformAvailability
