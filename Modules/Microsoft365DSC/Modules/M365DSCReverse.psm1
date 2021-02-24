@@ -538,15 +538,6 @@ function Start-M365DSCConfigurationExtract
     Write-Host "}"
     #endregion
 
-    if (-not [System.String]::IsNullOrEmpty($FileName))
-    {
-        $outputDSCFile = $OutputDSCPath + $FileName
-    }
-    else
-    {
-        $outputDSCFile = $OutputDSCPath + "M365TenantConfig.ps1"
-    }
-
     Write-ExtractionStates -OutputDSCPath $OutputDSCPath -ResourceExtractionStates $resourceExtractionStates -ResourceTimeTotalTaken $resourceTimeTotalTaken
 
     if (!$AzureAutomation)
