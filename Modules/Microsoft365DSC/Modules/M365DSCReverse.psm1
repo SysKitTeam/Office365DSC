@@ -231,14 +231,8 @@ function Start-M365DSCConfigurationExtract
     #endregion
 
 
-
-    $sw = New-Object System.IO.StringWriter
-    Write-DscStartFileContents -Writer $sw
-    $DSCContent = $sw.ToString()
-
-
-
-
+    # this is to avoid problems with unicode charachters when executing the generated ps1 file
+    $Utf8BomEncoding = New-Object System.Text.UTF8Encoding $True
 
 
 
@@ -466,15 +460,15 @@ function Start-M365DSCConfigurationExtract
             {
                 $resourceExtractionStates[$msftResourceName] = 'NotIncluded'
             }
-            $DSCContent += $exportString
 
             $fileStream = $null
             $sw = $null
             try
             {
-                $resOutputFilePath = Join-Path $OutputDSCPath "$($resourceName)_Config.ps1"
+                $resOutputFilePath = Join-Path $OutputDSCPath "$($resourceName)_TenantConfig.ps1"
                 $fileStream = [System.IO.File]::OpenWrite("$resOutputFilePath")
-                $sw = New-Object System.IO.StreamWriter -ArgumentList $fileStream
+
+                $sw = New-Object System.IO.StreamWriter -ArgumentList @($fileStream, $Utf8BomEncoding)
                 Write-DscStartFileContents -Writer $sw
                 $sw.Write($exportString)
                 Write-DscEndingFileContents $sw
@@ -535,15 +529,6 @@ function Start-M365DSCConfigurationExtract
     # dont' leave dangling remote sessions, there can only be a couple of them for EXO and SC
     Remove-RemoteSessions
 
-
-    # Close the Node and Configuration declarations
-
-
-    $endingWriter = New-Object System.IO.StringWriter
-    Write-DscEndingFileContents $endingWriter
-
-    $DSCContent += $endingWriter.ToString()
-
     #region Benchmarks
     $M365DSCExportEndTime = [System.DateTime]::Now
     $timeTaken = New-Timespan -Start ($M365DSCExportStartTime.ToString()) `
@@ -561,10 +546,6 @@ function Start-M365DSCConfigurationExtract
     {
         $outputDSCFile = $OutputDSCPath + "M365TenantConfig.ps1"
     }
-
-    # this is to avoid problems with unicode charachters when executing the generated ps1 file
-    $Utf8BomEncoding = New-Object System.Text.UTF8Encoding $True
-    [System.IO.File]::WriteAllText($outputDSCFile, $DSCContent, $Utf8BomEncoding)
 
     Write-ExtractionStates -OutputDSCPath $OutputDSCPath -ResourceExtractionStates $resourceExtractionStates -ResourceTimeTotalTaken $resourceTimeTotalTaken
 
@@ -762,16 +743,6 @@ function Write-DscStartFileContents
             $Writer.WriteLine(")`r`n")
         }
     }
-
-    # if (-not [System.String]::IsNullOrEmpty($FileName))
-    # {
-    #     $FileParts = $FileName.Split('.')
-
-    #     if ([System.String]::IsNullOrEmpty($ConfigurationName))
-    #     {
-    #         $ConfigurationName = $FileName.Replace('.' + $FileParts[$FileParts.Length - 1], "")
-    #     }
-    # }
 
     $ConfigurationName = 'M365TenantConfig'
 
