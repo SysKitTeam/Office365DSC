@@ -2317,6 +2317,12 @@ function Get-M365DSCExportContentForResource
         [EmbbededResourceInfo[]]
         $PropertiesWithEmbeddedResources
     )
+
+    if ($Results -and $Results.Ensure -and $Results.Ensure -eq "Absent")
+    {
+        return ""
+    }
+
     $OrganizationName = ""
     if ($ConnectionMode -eq 'ServicePrincipal')
     {
