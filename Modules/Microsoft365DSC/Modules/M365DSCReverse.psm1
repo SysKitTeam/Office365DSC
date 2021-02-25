@@ -465,13 +465,16 @@ function Start-M365DSCConfigurationExtract
             $sw = $null
             try
             {
-                $resOutputFilePath = Join-Path $OutputDSCPath "$($resourceName)_TenantConfig.ps1"
-                $fileStream = [System.IO.File]::OpenWrite("$resOutputFilePath")
+                if (![string]::IsNullOrEmpty($exportString))
+                {
+                    $resOutputFilePath = Join-Path $OutputDSCPath "$($resourceName)_TenantConfig.ps1"
+                    $fileStream = [System.IO.File]::OpenWrite("$resOutputFilePath")
 
-                $sw = New-Object System.IO.StreamWriter -ArgumentList @($fileStream, $Utf8BomEncoding)
-                Write-DscStartFileContents -Writer $sw
-                $sw.Write($exportString)
-                Write-DscEndingFileContents $sw
+                    $sw = New-Object System.IO.StreamWriter -ArgumentList @($fileStream, $Utf8BomEncoding)
+                    Write-DscStartFileContents -Writer $sw
+                    $sw.Write($exportString)
+                    Write-DscEndingFileContents $sw
+                }
             }
             finally
             {
