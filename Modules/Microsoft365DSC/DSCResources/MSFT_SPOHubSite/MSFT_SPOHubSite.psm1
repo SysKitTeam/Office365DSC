@@ -564,7 +564,7 @@ function Export-TargetResource
     $ConnectionMode = New-M365DSCConnection -Platform 'PnP' `
                 -InboundParameters $PSBoundParameters
 
-    $hubSites = Get-PnPHubSite
+    [array]$hubSites = Get-PnPHubSite
 
     $i = 1
     Write-Host "`r`n" -NoNewLine
@@ -572,6 +572,11 @@ function Export-TargetResource
     $dscContent = ''
     foreach ($hub in $hubSites)
     {
+        # should not be possible, but weird errors for one customer
+        if([string]::IsNullOrEmpty($hub.SiteUrl))
+        {
+            continue
+        }
 
         $Params = @{
             Url                   = $hub.SiteUrl
