@@ -323,6 +323,11 @@ function Export-TargetResource
                 CertificatePath       = $CertificatePath
             }
             $Results = Get-TargetResource @Params
+            if($Results.Ensure -eq "Absent")
+            {
+                continue
+            }
+            
             $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
                 -Results $Results
             $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
