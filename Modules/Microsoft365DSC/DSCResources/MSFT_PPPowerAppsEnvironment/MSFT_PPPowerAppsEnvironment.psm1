@@ -14,7 +14,6 @@ function Get-TargetResource
 
         [Parameter(Mandatory = $true)]
         [System.String]
-        [ValidateSet('Production','Standard', 'Trial', 'Sandbox')]
         $EnvironmentSKU,
 
         [Parameter()]
@@ -102,7 +101,6 @@ function Set-TargetResource
 
         [Parameter(Mandatory = $true)]
         [System.String]
-        [ValidateSet('Production','Standard', 'Trial', 'Sandbox')]
         $EnvironmentSKU,
 
         [Parameter()]
@@ -186,7 +184,6 @@ function Test-TargetResource
 
         [Parameter(Mandatory = $true)]
         [System.String]
-        [ValidateSet('Production','Standard', 'Trial', 'Sandbox')]
         $EnvironmentSKU,
 
         [Parameter()]
