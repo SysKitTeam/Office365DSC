@@ -345,11 +345,11 @@ function Start-M365DSCConfigurationExtract
     $platformSkipsNotified = @()
     foreach ($resource in $ResourcesToExport)
     {
+        $resourceName = $resource.Name.Split('.')[0].Replace('MSFT_', '')
         try
         {
             $shouldSkipBecauseOfFailedPlatforms = $false
-            $usedPlatforms = Get-ResourcePlatformUsage -Resource $resourceName -ResourceModuleFilePath $ResourceModule.FullName
-
+            [array]$usedPlatforms = Get-ResourcePlatformUsage -Resource $resourceName -ResourceModuleFilePath $resource.FullName
             foreach($platform in $usedPlatforms)
             {
                 # we will skip PnP if there was a problem connecting to a specific site
@@ -360,8 +360,9 @@ function Start-M365DSCConfigurationExtract
                     continue
                 }
                 $isAvailable = Check-PlatformAvailability -Platform $platform
-                $shouldSkip = $shouldSkip -or !$isAvailable
-
+                Write-Verbose "The isConnectionAvailable flag is $isAvailable for $platform"
+                $shouldSkipBecauseOfFailedPlatforms = $shouldSkipBecauseOfFailedPlatforms -or !$isAvailable
+                Write-Verbose "The shouldskip flag is $shouldSkipBecauseOfFailedPlatforms for $platform"
                 if(!$isAvailable -and !$platformSkipsNotified.Contains($platform))
                 {
                     Write-Error "The [$platform] connection has failed and all of the related resources will be skipped to avoid unnecessary errors."
@@ -495,7 +496,7 @@ function Start-M365DSCConfigurationExtract
         finally
         {
             $WarningPreference = $DefaultWarningPreference;
-            $VerbosePreference = $DefaultVerbosePreference;        
+            $VerbosePreference = $DefaultVerbosePreference;
 		}
     }
 
@@ -605,7 +606,7 @@ function Start-M365DSCConfigurationExtract
     {
         $outputDSCFile = $OutputDSCPath + "M365TenantConfig.ps1"
     }
-    
+
      # this is to avoid problems with unicode charachters when executing the generated ps1 file
     $Utf8BomEncoding = New-Object System.Text.UTF8Encoding $True
     [System.IO.File]::WriteAllText($outputDSCFile, $DSCContent, $Utf8BomEncoding)
@@ -670,7 +671,7 @@ function Get-ResourcePlatformUsage
         $ResourceModuleFilePath
     )
     $fileContent = Get-Content $ResourceModuleFilePath -Raw
-    $matches = [Regex]::Matches($fileContent, '-Platform\s+(?<platform>\w+)', [ System.Text.RegularExpressions.RegexOptions]::IgnoreCase);
+    $matches = [Regex]::Matches($fileContent, '-Platform\s+''?(?<platform>\w+)''?', [ System.Text.RegularExpressions.RegexOptions]::IgnoreCase);
 
     $platforms = @()
     foreach($match in $matches)
