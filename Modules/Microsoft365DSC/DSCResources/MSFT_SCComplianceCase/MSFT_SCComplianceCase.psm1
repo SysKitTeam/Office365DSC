@@ -24,7 +24,10 @@ function Get-TargetResource
 
         [Parameter(Mandatory = $true)]
         [System.Management.Automation.PSCredential]
-        $GlobalAdminAccount
+        $GlobalAdminAccount,
+
+        [Parameter()]
+        $RawInputObject
     )
 
     Write-Verbose -Message "Getting configuration of SCComplianceCase for $Name"
@@ -37,19 +40,27 @@ function Get-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    if ($Global:CurrentModeIsExport)
+    $Case = $null
+    if ($RawInputObject)
     {
-        $ConnectionMode = New-M365DSCConnection -Platform 'SecurityComplianceCenter' `
-            -InboundParameters $PSBoundParameters `
-            -SkipModuleReload $true
+        $Case = $RawInputObject
     }
     else
     {
-        $ConnectionMode = New-M365DSCConnection -Platform 'SecurityComplianceCenter' `
-            -InboundParameters $PSBoundParameters
-    }
+        if ($Global:CurrentModeIsExport)
+        {
+            $ConnectionMode = New-M365DSCConnection -Platform 'SecurityComplianceCenter' `
+                -InboundParameters $PSBoundParameters `
+                -SkipModuleReload $true
+        }
+        else
+        {
+            $ConnectionMode = New-M365DSCConnection -Platform 'SecurityComplianceCenter' `
+                -InboundParameters $PSBoundParameters
+        }
 
-    $Case = Get-ComplianceCase -Identity $Name -ErrorAction SilentlyContinue
+        $Case = Get-ComplianceCase -Identity $Name -ErrorAction SilentlyContinue
+    }
 
     if ($null -eq $Case)
     {
@@ -244,8 +255,9 @@ function Export-TargetResource
     {
         Write-Host "    eDiscovery: [$i/$($Cases.Count)] $($Case.Name)" -NoNewLine
         $Params = @{
-            Name                  = $Case.Name
-            GlobalAdminAccount    = $GlobalAdminAccount
+            Name               = $Case.Name
+            GlobalAdminAccount = $GlobalAdminAccount
+            RawInputObject     = $Case
         }
         $Results = Get-TargetResource @Params
         $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
@@ -266,8 +278,9 @@ function Export-TargetResource
     {
         Write-Host "    GDPR: [$i/$($Cases.Count)] $($Case.Name)" -NoNewLine
         $Params = @{
-            Name                  = $Case.Name
-            GlobalAdminAccount    = $GlobalAdminAccount
+            Name               = $Case.Name
+            GlobalAdminAccount = $GlobalAdminAccount
+            RawInputObject     = $Case
         }
         $Results = Get-TargetResource @Params
         $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `

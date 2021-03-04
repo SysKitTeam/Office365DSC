@@ -10,7 +10,7 @@ function Get-TargetResource
         $Identity,
 
         [Parameter()]
-        [ValidateSet('Authoritative','InternalRelay')]
+        [ValidateSet('Authoritative', 'InternalRelay')]
         [System.String]
         $DomainType = 'Authoritative',
 
@@ -51,8 +51,10 @@ function Get-TargetResource
 
         [Parameter()]
         [System.Management.Automation.PSCredential]
-        $CertificatePassword
+        $CertificatePassword,
 
+        [Parameter()]
+        $RawInputObject
     )
     Write-Verbose -Message "Getting configuration of Accepted Domain for $Identity"
     #region Telemetry
@@ -77,11 +79,19 @@ function Get-TargetResource
             -InboundParameters $PSBoundParameters
     }
 
-    Write-Verbose -Message 'Getting all Accepted Domain'
-    $AllAcceptedDomains = Get-AcceptedDomain
+    $AcceptedDomain = $null
+    if ($RawInputObject)
+    {
+        $AcceptedDomain = $RawInputObject
+    }
+    else
+    {
+        Write-Verbose -Message 'Getting all Accepted Domain'
+        $AllAcceptedDomains = Get-AcceptedDomain
 
-    Write-Verbose -Message 'Filtering Accepted Domain list by Identity'
-    $AcceptedDomain = $AllAcceptedDomains | Where-Object -FilterScript { $_.Identity -eq $Identity }
+        Write-Verbose -Message 'Filtering Accepted Domain list by Identity'
+        $AcceptedDomain = $AllAcceptedDomains | Where-Object -FilterScript { $_.Identity -eq $Identity }
+    }
 
     if ($null -eq $AcceptedDomain)
     {
@@ -89,7 +99,7 @@ function Get-TargetResource
 
         # Check to see if $Identity matches a verified domain in the O365 Tenant
         $ConnectionMode = New-M365DSCConnection -Platform 'AzureAd' `
-           -InboundParameters $PSBoundParameters
+            -InboundParameters $PSBoundParameters
 
         $VerifiedDomains = Get-AzureADDomain | Where-Object -FilterScript { $_.IsVerified }
         $MatchingVerifiedDomain = $VerifiedDomains | Where-Object -FilterScript { $_.Name -eq $Identity }
@@ -162,7 +172,7 @@ function Set-TargetResource
         $Identity,
 
         [Parameter()]
-        [ValidateSet('Authoritative','InternalRelay')]
+        [ValidateSet('Authoritative', 'InternalRelay')]
         [System.String]
         $DomainType = 'Authoritative',
 
@@ -244,7 +254,7 @@ function Test-TargetResource
         $Identity,
 
         [Parameter()]
-        [ValidateSet('Authoritative','InternalRelay')]
+        [ValidateSet('Authoritative', 'InternalRelay')]
         [System.String]
         $DomainType = 'Authoritative',
 
@@ -375,6 +385,7 @@ function Export-TargetResource
             CertificatePassword   = $CertificatePassword
             CertificatePath       = $CertificatePath
             GlobalAdminAccount    = $GlobalAdminAccount
+            RawInputObject        = $domain
         }
         $Results = Get-TargetResource @Params
         $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `

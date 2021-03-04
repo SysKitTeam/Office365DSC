@@ -151,18 +151,18 @@ function Get-TeamEnabledOffice365Groups
     try
     {
         $allTeams = New-Object Collections.Generic.List[Microsoft.TeamsCmdlets.PowerShell.Custom.Model.Team]
-        $endpoint = "https://graph.microsoft.com"
+        $endpoint = Get-AzureEnvironmentEndpoint -AzureCloudEnvironmentName $Global:appIdentityParams.AzureCloudEnvironmentName -EndpointName "MsGraphEndpointResourceId"
         $accessToken = Get-AppIdentityAccessToken $endpoint
 
         $httpClient = [Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities]::GetClient("Bearer $accessToken", "Get-TeamTraceCustom")
 
         $requestUri = [Uri]::new("$endpoint/v1.0/groups?$filter=groupTypes/any(c:c+eq+'Unified')&`$select=id,resourceProvisioningOptions,displayName,description,visibility,mailnickname,classification")
-            Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
-                $accessToken = Get-AppIdentityAccessToken $endpoint
-                $httpClient.DefaultRequestHeaders.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::Parse("Bearer $accessToken");
-                $allTeams.AddRange([Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities].GetMethod("GetAll").MakeGenericMethod([Microsoft.TeamsCmdlets.PowerShell.Custom.Model.Team]).Invoke($null, @($httpClient, $requestUri)))
-                Write-Verbose "Retrieved all teams"
-            }
+        Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
+            $accessToken = Get-AppIdentityAccessToken $endpoint
+            $httpClient.DefaultRequestHeaders.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::Parse("Bearer $accessToken");
+            $allTeams.AddRange([Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities].GetMethod("GetAll").MakeGenericMethod([Microsoft.TeamsCmdlets.PowerShell.Custom.Model.Team]).Invoke($null, @($httpClient, $requestUri)))
+            Write-Verbose "Retrieved all teams"
+        }
 
         $allTeams = $allTeams | Where-Object {
             $_.ResourceProvisioningOptions.Contains("Team")
@@ -188,14 +188,14 @@ function Get-AllTeamsCached
         $ForceRefresh
     )
 
-    if($Global:O365TeamsCached -and !$ForceRefresh)
+    if ($Global:O365TeamsCached -and !$ForceRefresh)
     {
         return $Global:O365TeamsCached
     }
 
     $allTeamSettings = New-Object Collections.Generic.List[Microsoft.TeamsCmdlets.PowerShell.Custom.Model.TeamSettings]
 
-    $endpoint = "https://graph.microsoft.com"
+    $endpoint = Get-AzureEnvironmentEndpoint -AzureCloudEnvironmentName $Global:appIdentityParams.AzureCloudEnvironmentName -EndpointName "MsGraphEndpointResourceId"
 
     # The Get-Team cmdlet was not really written with throttling in mind
     # internally, they get the list of teams and then in parallel go to the /teams/{id} endpoint
@@ -213,7 +213,7 @@ function Get-AllTeamsCached
             Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
                 $accessToken = Get-AppIdentityAccessToken $endpoint
                 $singleTeamClient.DefaultRequestHeaders.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::Parse("Bearer $accessToken")
-                $groupId= $teamToRetrieve.GroupId
+                $groupId = $teamToRetrieve.GroupId
                 $singleTeamRequestUri = [Uri]::new("$endpoint/v1.0/teams/$groupId")
                 Write-Verbose "retrieving from $singleTeamRequestUri"
                 [Type[]]$types = @([System.Net.Http.HttpClient], [Uri])
@@ -226,6 +226,19 @@ function Get-AllTeamsCached
 
                 $allTeamSettings.Add([Microsoft.TeamsCmdlets.PowerShell.Custom.Model.TeamSettings]::new($team))
             }
+        }
+        catch
+        {
+            $missingTeam = ($null -ne $_.Exception -and $_.Exception.ErrorCode -eq 404) -or ($null -ne $_.Exception -and $null -ne $_.Exception.InnerException -and $_.Exception.InnerException.ErrorCode -eq 404);
+
+            # write the output only if the teams is not missing
+            # if it's missing then it was probably deleted or something like that
+            if (!$missingTeam)
+            {
+                # we write it with verbose because if one team retrieval fails, they probably all will. No teams is hard to miss in the output data so the error should be evident
+                Write-Verbose $_
+            }
+
         }
         finally
         {
@@ -248,7 +261,7 @@ function Invoke-WithTransientErrorExponentialRetry
         $ScriptBlock
     )
 
-    if($null -eq $Global:O365DSCBackoffRandomizer)
+    if ($null -eq $Global:O365DSCBackoffRandomizer)
     {
         $Global:O365DSCBackoffRandomizer = [System.Random]::new()
     }
@@ -265,7 +278,7 @@ function Invoke-WithTransientErrorExponentialRetry
         }
         catch
         {
-            if($null -eq $_.Exception -or $null -eq $_.Exception.InnerException -or ($_.Exception.InnerException.ErrorCode -ne 429 -and $_.Exception.InnerException.ErrorCode -ne 503) -or $retryCount -eq 0)
+            if ($null -eq $_.Exception -or $null -eq $_.Exception.InnerException -or ($_.Exception.InnerException.ErrorCode -ne 429 -and $_.Exception.InnerException.ErrorCode -ne 503) -or $retryCount -eq 0)
             {
                 throw
             }
@@ -1088,7 +1101,7 @@ function Get-M365DSCTenantDomain
     if (!$CertificatePath)
     {
         $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
-                    -InboundParameters $PSBoundParameters
+            -InboundParameters $PSBoundParameters
         $tenantDetails = Get-AzureADTenantDetail
         $defaultDomain = $tenantDetails.VerifiedDomains | Where-Object -Filterscript { $_.Initial }
         return $defaultDomain.Name
@@ -1127,7 +1140,8 @@ function Get-M365DSCOrganization
         {
             $organization = $TenantId
             return $organization
-        }else
+        }
+        else
         {
             Throw "Tenant ID must be name of tenant not a GUID. Ex contoso.onmicrosoft.com"
         }
@@ -1173,25 +1187,25 @@ function New-M365DSCConnection
     # Case both authentication methods are attempted
     if ($null -ne $InboundParameters.GlobalAdminAccount -and `
         (-not [System.String]::IsNullOrEmpty($InboundParameters.TenantId) -or `
-        -not [System.String]::IsNullOrEmpty($InboundParameters.CertificateThumbprint)))
+                -not [System.String]::IsNullOrEmpty($InboundParameters.CertificateThumbprint)))
     {
         Write-Verbose -Message 'Both Authentication methods are attempted'
         throw "You can't specify both the GlobalAdminAccount and one of {TenantId, CertificateThumbprint}"
     }
     # Case no authentication method is specified
     elseif ($null -eq $InboundParameters.GlobalAdminAccount -and `
-        [System.String]::IsNullOrEmpty($InboundParameters.ApplicationId) -and `
-        [System.String]::IsNullOrEmpty($InboundParameters.TenantId) -and `
-        [System.String]::IsNullOrEmpty($InboundParameters.CertificateThumbprint))
+            [System.String]::IsNullOrEmpty($InboundParameters.ApplicationId) -and `
+            [System.String]::IsNullOrEmpty($InboundParameters.TenantId) -and `
+            [System.String]::IsNullOrEmpty($InboundParameters.CertificateThumbprint))
     {
         Write-Verbose -Message "No Authentication method was provided"
         throw "You must specify either the GlobalAdminAccount or ApplicationId, TenantId and CertificateThumbprint parameters."
     }
     # Case only GlobalAdminAccount is specified
     elseif ($null -ne $InboundParameters.GlobalAdminAccount -and `
-        [System.String]::IsNullOrEmpty($InboundParameters.ApplicationId) -and `
-        [System.String]::IsNullOrEmpty($InboundParameters.TenantId) -and `
-        [System.String]::IsNullOrEmpty($InboundParameters.CertificateThumbprint))
+            [System.String]::IsNullOrEmpty($InboundParameters.ApplicationId) -and `
+            [System.String]::IsNullOrEmpty($InboundParameters.TenantId) -and `
+            [System.String]::IsNullOrEmpty($InboundParameters.CertificateThumbprint))
     {
         Write-Verbose -Message "GlobalAdminAccount was specified. Connecting via User Principal"
         if ([System.String]::IsNullOrEmpty($Url))
@@ -1211,7 +1225,7 @@ function New-M365DSCConnection
     }
     # Case only the ApplicationID and Credentials parameters are specified
     elseif ($null -ne $InboundParameters.GlobalAdminAccount -and `
-        -not [System.String]::IsNullOrEmpty($InboundParameters.ApplicationId))
+            -not [System.String]::IsNullOrEmpty($InboundParameters.ApplicationId))
     {
         Write-Verbose -Message "GlobalAdminAccount and ApplicationId were specified. Connecting via Delegated Service Principal"
         if ([System.String]::IsNullOrEmpty($url))
@@ -1233,9 +1247,9 @@ function New-M365DSCConnection
     }
     # Case only the ServicePrincipal with Thumbprint parameters are specified
     elseif ($null -eq $InboundParameters.GlobalAdminAccount -and `
-        -not [System.String]::IsNullOrEmpty($InboundParameters.ApplicationId) -and `
-        -not [System.String]::IsNullOrEmpty($InboundParameters.TenantId) -and `
-        -not [System.String]::IsNullOrEmpty($InboundParameters.CertificateThumbprint))
+            -not [System.String]::IsNullOrEmpty($InboundParameters.ApplicationId) -and `
+            -not [System.String]::IsNullOrEmpty($InboundParameters.TenantId) -and `
+            -not [System.String]::IsNullOrEmpty($InboundParameters.CertificateThumbprint))
     {
         if ([System.String]::IsNullOrEmpty($url))
         {
@@ -1259,10 +1273,10 @@ function New-M365DSCConnection
     }
     # Case only the ServicePrincipal with Thumbprint parameters are specified
     elseif ($null -eq $InboundParameters.GlobalAdminAccount -and `
-        -not [System.String]::IsNullOrEmpty($InboundParameters.ApplicationId) -and `
-        -not [System.String]::IsNullOrEmpty($InboundParameters.TenantId) -and `
-        -not [System.String]::IsNullOrEmpty($InboundParameters.CertificatePath) -and `
-        $null -ne $InboundParameters.CertificatePassword)
+            -not [System.String]::IsNullOrEmpty($InboundParameters.ApplicationId) -and `
+            -not [System.String]::IsNullOrEmpty($InboundParameters.TenantId) -and `
+            -not [System.String]::IsNullOrEmpty($InboundParameters.CertificatePath) -and `
+            $null -ne $InboundParameters.CertificatePassword)
     {
         if ([System.String]::IsNullOrEmpty($url))
         {
@@ -1340,7 +1354,7 @@ function Get-M365TenantName
     }
     Write-Verbose -Message "Connection to Azure AD is required to automatically determine SharePoint Online admin URL..."
     $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
-                -InboundParameters $PSBoundParameters
+        -InboundParameters $PSBoundParameters
     Write-Verbose -Message "Getting SharePoint Online admin URL..."
     $defaultDomain = Get-AzureADDomain | Where-Object { ($_.Name -like "*.onmicrosoft.com" -or $_.Name -like "*.onmicrosoft.de") -and $_.IsInitial -eq $true } # We don't use IsDefault here because the default could be a custom domain
 
@@ -1427,9 +1441,15 @@ function Start-DSCInitializedJob
         $ArgumentList
     )
 
-    $msloginAssistentPath = (Get-Module MSCloudLoginAssistant).Path.Replace("psm1","psd1")
+    $msloginAssistentPath = (Get-Module MSCloudLoginAssistant).Path.Replace("psm1", "psd1")
     $setupJobScript = " Import-Module '$msloginAssistentPath' -Force | Out-Null;"
-    if($Global:appIdentityParams)
+
+    # an explicit import for the teams module because of some problems with missing .net types when used inside a PSJob
+    # this only occurs because they are accessed directly, not through a cmdlet from the teams module
+    $teamsModuleVersion = (Get-Module MicrosoftTeams).Version
+    $setupJobScript += " Import-Module MicrosoftTeams -RequiredVersion $teamsModuleVersion -Force | Out-Null;"
+
+    if ($Global:appIdentityParams)
     {
         $entropyStr = [string]::Join(', ', $Global:appIdentityParams.TokenCacheEntropy)
         $setupJobScript += "[byte[]] `$tokenCacheEntropy = $entropyStr;"
@@ -1437,26 +1457,26 @@ function Start-DSCInitializedJob
     }
 
     # ReverseDSC is needed because most of the time the job will call something from it
-    $reverseDscModulePath = (Get-Module ReverseDSC).Path.Replace("psm1","psd1")
-    $setupJobScript +=  " Import-Module '$reverseDscModulePath' -Force | Out-Null;"
+    $reverseDscModulePath = (Get-Module ReverseDSC).Path.Replace("psm1", "psd1")
+    $setupJobScript += " Import-Module '$reverseDscModulePath' -Force | Out-Null;"
 
 
     $insertPosition = 0
-    if($ScriptBlock.Ast.BeginBlock)
+    if ($ScriptBlock.Ast.BeginBlock)
     {
         $insertPosition = $ScriptBlock.Ast.BeginBlock.Statements[0].Extent.StartOffset;
     }
-    elseif($ScriptBlock.Ast.ProcessBlock)
+    elseif ($ScriptBlock.Ast.ProcessBlock)
     {
         $insertPosition = $ScriptBlock.Ast.ProcessBlock.Statements[0].Extent.StartOffset;
     }
-    elseif($ScriptBlock.Ast.EndBlock)
+    elseif ($ScriptBlock.Ast.EndBlock)
     {
         $insertPosition = $ScriptBlock.Ast.EndBlock.Statements[0].Extent.StartOffset;
     }
     $insertPosition = $insertPosition - $ScriptBlock.StartPosition.Start
     $strScriptContent = $ScriptBlock.ToString();
-    $strScriptContent = $strScriptContent.Insert($insertPosition - 1, $setupJobScript +"`n")
+    $strScriptContent = $strScriptContent.Insert($insertPosition - 1, $setupJobScript + "`n")
     $newScriptBlock = [ScriptBlock]::Create($strScriptContent)
     Start-Job -Name $Name -ScriptBlock $newScriptBlock  -ArgumentList $ArgumentList
 }
@@ -1637,13 +1657,13 @@ function Get-AllSPOPackages
     )
 
     $ConnectionMode = New-M365DSCConnection -Platform 'PnP' `
-                -InboundParameters $PSBoundParameters
+        -InboundParameters $PSBoundParameters
 
     $tenantAppCatalogUrl = Get-PnPTenantAppCatalogUrl
 
     $ConnectionMode = New-M365DSCConnection -Platform 'PnP' `
-                -InboundParameters $PSBoundParameters `
-                -Url $tenantAppCatalogUrl
+        -InboundParameters $PSBoundParameters `
+        -Url $tenantAppCatalogUrl
 
     $filesToDownload = @()
 
@@ -2297,6 +2317,12 @@ function Get-M365DSCExportContentForResource
         [EmbbededResourceInfo[]]
         $PropertiesWithEmbeddedResources
     )
+
+    if ($Results -and $Results.Ensure -and $Results.Ensure -eq "Absent")
+    {
+        return ""
+    }
+
     $OrganizationName = ""
     if ($ConnectionMode -eq 'ServicePrincipal')
     {
@@ -2345,10 +2371,11 @@ function Get-M365DSCExportContentForResource
         }
     }
 
-    foreach ($dscProp in $PropertiesWithDscBlock) {
+    foreach ($dscProp in $PropertiesWithDscBlock)
+    {
         $isCimArray = $null -ne $PropertiesCimArrays -and $PropertiesCimArrays.Contains($dscProp)
         $partialContent = Convert-DSCStringParamToVariable -DSCBlock $partialContent `
-        -ParameterName $dscProp -IsCimArray $isCimArray
+            -ParameterName $dscProp -IsCimArray $isCimArray
     }
 
     if ($partialContent.ToLower().IndexOf($OrganizationName.ToLower()) -gt 0)
@@ -2418,8 +2445,9 @@ function Execute-CSOMQueryRetry
    Load-CSOMProperties -object $web -propertyNames @("Title", "Url", "AllProperties") -executeQuery
    $web | select Title, Url, AllProperties
 #>
-function Load-CSOMProperties {
-    [CmdletBinding(DefaultParameterSetName='ClientObject')]
+function Load-CSOMProperties
+{
+    [CmdletBinding(DefaultParameterSetName = 'ClientObject')]
     param (
         # The Microsoft.SharePoint.Client.ClientObject to populate.
         [Parameter(Mandatory = $true, ValueFromPipeline = $true, Position = 0, ParameterSetName = "ClientObject")]
@@ -2453,13 +2481,20 @@ function Load-CSOMProperties {
         $executeQuery
     )
 
-    begin { }
-    process {
-        if ($PsCmdlet.ParameterSetName -eq "ClientObject") {
+    begin
+    {
+    }
+    process
+    {
+        if ($PsCmdlet.ParameterSetName -eq "ClientObject")
+        {
             $type = $object.GetType()
-        } else {
+        }
+        else
+        {
             $type = $collectionObject.GetType()
-            if ($collectionObject -is [Microsoft.SharePoint.Client.ClientObjectCollection]) {
+            if ($collectionObject -is [Microsoft.SharePoint.Client.ClientObjectCollection])
+            {
                 $type = $collectionObject.GetType().BaseType.GenericTypeArguments[0]
             }
         }
@@ -2470,28 +2505,38 @@ function Load-CSOMProperties {
         $lambdaMethodGeneric = Invoke-Expression "`$lambdaMethod.MakeGenericMethod([System.Func``2[$($type.FullName),System.Object]])"
         $expressions = @()
 
-        foreach ($propertyName in $propertyNames) {
+        foreach ($propertyName in $propertyNames)
+        {
             $param1 = [System.Linq.Expressions.Expression]::Parameter($type, "p")
-            try {
+            try
+            {
                 $name1 = [System.Linq.Expressions.Expression]::Property($param1, $propertyName)
-            } catch {
+            }
+            catch
+            {
                 Write-Error "Instance property '$propertyName' is not defined for type $type"
                 return
             }
             $body1 = [System.Linq.Expressions.Expression]::Convert($name1, [System.Object])
             $expression1 = $lambdaMethodGeneric.Invoke($null, [System.Object[]] @($body1, [System.Linq.Expressions.ParameterExpression[]] @($param1)))
 
-            if ($collectionObject -ne $null) {
+            if ($collectionObject -ne $null)
+            {
                 $expression1 = [System.Linq.Expressions.Expression]::Quote($expression1)
             }
             $expressions += @($expression1)
         }
 
 
-        if ($PsCmdlet.ParameterSetName -eq "ClientObject") {
+        if ($PsCmdlet.ParameterSetName -eq "ClientObject")
+        {
             $object.Context.Load($object, $expressions)
-            if ($executeQuery) { $object.Context.ExecuteQuery() }
-        } else {
+            if ($executeQuery)
+            { $object.Context.ExecuteQuery()
+            }
+        }
+        else
+        {
             $newArrayInitParam1 = Invoke-Expression "[System.Linq.Expressions.Expression``1[System.Func````2[$($type.FullName),System.Object]]]"
             $newArrayInit = [System.Linq.Expressions.Expression]::NewArrayInit($newArrayInitParam1, $expressions)
 
@@ -2508,10 +2553,14 @@ function Load-CSOMProperties {
             $expression2 = $lambdaMethodGeneric2.Invoke($null, @($callMethod, [System.Linq.Expressions.ParameterExpression[]] @($collectionParam)))
 
             $parentObject.Context.Load($parentObject, $expression2)
-            if ($executeQuery) { $parentObject.Context.ExecuteQuery() }
+            if ($executeQuery)
+            { $parentObject.Context.ExecuteQuery()
+            }
         }
     }
-    end { }
+    end
+    {
+    }
 }
 
 function Get-DSCPSTokenValue
@@ -2528,26 +2577,27 @@ function Get-DSCPSTokenValue
         $AllowSpecialCharachters
     )
 
-    if($null -eq $Value)
+    if ($null -eq $Value)
     {
         $Value = ""
     }
 
-    if(!($Value -is [string])) {
+    if (!($Value -is [string]))
+    {
         $Value = $Value.ToString()
     }
 
-    $sb =  [System.Text.StringBuilder]::new()
+    $sb = [System.Text.StringBuilder]::new()
 
     [void]$sb.Append("`"")
 
-    if(!$AllowSpecialCharachters)
+    if (!$AllowSpecialCharachters)
     {
-        foreach($char in [char[]]$Value)
+        foreach ($char in [char[]]$Value)
         {
-            if($char -eq '"' -or $char -eq [char]0x201C -or $char -eq [char]0x201D -or $char -eq [char]0x201E -or $char -eq '$')
+            if ($char -eq '"' -or $char -eq [char]0x201C -or $char -eq [char]0x201D -or $char -eq [char]0x201E -or $char -eq '$')
             {
-               [void]$sb.Append('`')
+                [void]$sb.Append('`')
             }
             [void]$sb.Append($char)
         }
@@ -2570,7 +2620,7 @@ class EmbbededResourceInfo
 
 function Get-DSCBlockEx
 {
-<#
+    <#
 .SYNOPSIS
 Generate the DSC string representing the resource's instance.
 
@@ -2614,7 +2664,7 @@ Hashtable that contains the list of Key properties and their values.
     $Sorted = $Params.GetEnumerator() | Sort-Object -Property Name
     $NewParams = [Ordered]@{}
 
-    foreach($entry in $Sorted)
+    foreach ($entry in $Sorted)
     {
         $NewParams.Add($entry.Key, $entry.Value)
     }
@@ -2650,13 +2700,13 @@ Hashtable that contains the list of Key properties and their values.
 
         $value = $null
         $propName = $_
-        if($null -ne $PropertiesWithEmbeddedResources -and $PropertiesWithEmbeddedResources.Length -gt 0 -and ($idx = [System.Array]::FindIndex($PropertiesWithEmbeddedResources, [Predicate[EmbbededResourceInfo]]{$args[0].PropertyName -eq $propName })) -ge 0)
+        if ($null -ne $PropertiesWithEmbeddedResources -and $PropertiesWithEmbeddedResources.Length -gt 0 -and ($idx = [System.Array]::FindIndex($PropertiesWithEmbeddedResources, [Predicate[EmbbededResourceInfo]] { $args[0].PropertyName -eq $propName })) -ge 0)
         {
             $meta = $PropertiesWithEmbeddedResources[$idx]
-            if($paramType -eq "ArrayList" -or $paramType -eq "List``1" -or $paramType -eq "Hashtable[]")
+            if ($paramType -eq "ArrayList" -or $paramType -eq "List``1" -or $paramType -eq "Hashtable[]")
             {
                 $value = "@("
-                foreach($obj in $NewParams[$_])
+                foreach ($obj in $NewParams[$_])
                 {
                     $value += "                  $($meta.ResourceName)`r`n            {`r`n"
                     $value += Get-DSCBlockEx -ModulePath $ModulePath -Params $obj -IndentValue 4
@@ -2728,13 +2778,13 @@ Hashtable that contains the list of Key properties and their values.
             if ($hash -and !$hash.ToString().StartsWith("`$ConfigurationData."))
             {
                 $value = "@("
-                $hash| ForEach-Object {
+                $hash | ForEach-Object {
                     $escapedValue = Get-DSCPSTokenValue -Value $_ -AllowSpecialCharachters $AllowSpecialCharachtersInValues
-                    $value += $escapedValue +","
+                    $value += $escapedValue + ","
                 }
-                if($value.Length -gt 2)
+                if ($value.Length -gt 2)
                 {
-                    $value = $value.Substring(0,$value.Length -1)
+                    $value = $value.Substring(0, $value.Length - 1)
                 }
                 $value += ")"
             }
@@ -2756,12 +2806,12 @@ Hashtable that contains the list of Key properties and their values.
             if ($hash)
             {
                 $value = "@("
-                $hash| ForEach-Object {
+                $hash | ForEach-Object {
                     $value += $_.ToString() + ","
                 }
-                if($value.Length -gt 2)
+                if ($value.Length -gt 2)
                 {
-                    $value = $value.Substring(0,$value.Length -1)
+                    $value = $value.Substring(0, $value.Length - 1)
                 }
                 $value += ")"
             }
@@ -2784,20 +2834,20 @@ Hashtable that contains the list of Key properties and their values.
             if ($array.Length -gt 0 -and ($array[0].GetType().Name -eq "String" -and $paramType -ne "Microsoft.Management.Infrastructure.CimInstance[]"))
             {
                 $value = "@("
-                $hash| ForEach-Object {
+                $hash | ForEach-Object {
                     $escapedItemValue = Get-DSCPSTokenValue -Value $_ -AllowSpecialCharachters $AllowSpecialCharachtersInValues
-                    $value +=  $escapedItemValue + ","
+                    $value += $escapedItemValue + ","
                 }
-                if($value.Length -gt 2)
+                if ($value.Length -gt 2)
                 {
-                    $value = $value.Substring(0,$value.Length -1)
+                    $value = $value.Substring(0, $value.Length - 1)
                 }
                 $value += ")"
             }
             else
             {
                 $value = "@("
-                $array | ForEach-Object{
+                $array | ForEach-Object {
                     $value += $_
                 }
                 $value += ")"
@@ -2815,7 +2865,7 @@ Hashtable that contains the list of Key properties and their values.
             }
             else
             {
-                if($NewParams[$_].GetType().BaseType.Name -eq "Enum")
+                if ($NewParams[$_].GetType().BaseType.Name -eq "Enum")
                 {
                     $value = "`"" + $NewParams.Item($_) + "`""
                 }
@@ -2834,7 +2884,7 @@ Hashtable that contains the list of Key properties and their values.
         {
             $additionalSpaces += " "
         }
-        $dscBlock += [string]::new(' ', 12 + $IndentValue) + $_  + $additionalSpaces + " = " + $value + ";`r`n"
+        $dscBlock += [string]::new(' ', 12 + $IndentValue) + $_ + $additionalSpaces + " = " + $value + ";`r`n"
     }
 
     return $dscBlock
@@ -2859,13 +2909,13 @@ function Get-M365DSCComponentsForAuthenticationType
 
         # Case - Resource only supports AppID & GlobalAdmin
         if ($AuthenticationMethod.Contains("Application") -and `
-            $AuthenticationMethod.Contains("Credentials") -and `
-           ($parameters.Contains("ApplicationId") -and `
-            $parameters.Contains("GlobalAdminAccount") -and `
-            -not $parameters.Contains('CertificateThumbprint') -and `
-            -not $parameters.Contains('CertificatePath') -and `
-            -not $parameters.Contains('CertificatePassword') -and `
-            -not $parameters.Contains('TenantId')))
+                $AuthenticationMethod.Contains("Credentials") -and `
+            ($parameters.Contains("ApplicationId") -and `
+                    $parameters.Contains("GlobalAdminAccount") -and `
+                    -not $parameters.Contains('CertificateThumbprint') -and `
+                    -not $parameters.Contains('CertificatePath') -and `
+                    -not $parameters.Contains('CertificatePassword') -and `
+                    -not $parameters.Contains('TenantId')))
         {
             $Components += $resource.Name.Replace("MSFT_", "").Replace(".psm1", "")
         }
@@ -2873,16 +2923,16 @@ function Get-M365DSCComponentsForAuthenticationType
         #Case - Resource certificate info and TenantId
         elseif ($AuthenticationMethod.Contains("Certificate") -and `
             ($parameters.Contains('CertificateThumbprint') -or `
-            $parameters.Contains('CertificatePath') -or `
-            $parameters.Contains('CertificatePassword')) -and `
-            $parameters.Contains('TenantId'))
+                    $parameters.Contains('CertificatePath') -or `
+                    $parameters.Contains('CertificatePassword')) -and `
+                $parameters.Contains('TenantId'))
         {
             $Components += $resource.Name.Replace("MSFT_", "").Replace(".psm1", "")
         }
 
         # Case - Resource contains GlobalAdminAccount
         elseif ($AuthenticationMethod.Contains("Credentials") -and `
-            $parameters.Contains('GlobalAdminAccount'))
+                $parameters.Contains('GlobalAdminAccount'))
         {
             $Components += $resource.Name.Replace("MSFT_", "").Replace(".psm1", "")
         }

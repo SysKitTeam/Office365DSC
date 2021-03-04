@@ -63,7 +63,10 @@ function Get-TargetResource
 
         [Parameter(Mandatory = $true)]
         [System.Management.Automation.PSCredential]
-        $GlobalAdminAccount
+        $GlobalAdminAccount,
+
+        [Parameter()]
+        $RawInputObject
     )
 
     Write-Verbose -Message "Getting configuration of SCComplianceSearch for $Name"
@@ -76,26 +79,36 @@ function Get-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    if ($Global:CurrentModeIsExport)
+    $Search = $null
+    if ($RawInputObject)
     {
-        $ConnectionMode = New-M365DSCConnection -Platform 'SecurityComplianceCenter' `
-            -InboundParameters $PSBoundParameters `
-            -SkipModuleReload $true
+        $Search = $RawInputObject
     }
     else
     {
-        $ConnectionMode = New-M365DSCConnection -Platform 'SecurityComplianceCenter' `
-            -InboundParameters $PSBoundParameters
+        if ($Global:CurrentModeIsExport)
+        {
+            $ConnectionMode = New-M365DSCConnection -Platform 'SecurityComplianceCenter' `
+                -InboundParameters $PSBoundParameters `
+                -SkipModuleReload $true
+        }
+        else
+        {
+            $ConnectionMode = New-M365DSCConnection -Platform 'SecurityComplianceCenter' `
+                -InboundParameters $PSBoundParameters
+        }
+
+        if ($null -eq $Case)
+        {
+            $Search = Get-ComplianceSearch -Identity $Name -ErrorAction SilentlyContinue
+        }
+        else
+        {
+            $Search = Get-ComplianceSearch -Identity $Name -Case $Case -ErrorAction SilentlyContinue
+        }
     }
 
-    if ($null -eq $Case)
-    {
-        $Search = Get-ComplianceSearch -Identity $Name -ErrorAction SilentlyContinue
-    }
-    else
-    {
-        $Search = Get-ComplianceSearch -Identity $Name -Case $Case -ErrorAction SilentlyContinue
-    }
+
 
     if ($null -eq $Search)
     {
@@ -372,8 +385,9 @@ function Export-TargetResource
     {
         Write-Host "        |---[$i/$($searches.Name.Count)] $($search.Name)" -NoNewLine
         $params = @{
-            Name                  = $search.Name
-            GlobalAdminAccount    = $GlobalAdminAccount
+            Name               = $search.Name
+            GlobalAdminAccount = $GlobalAdminAccount
+            RawInputObject     = $search
         }
         $Results = Get-TargetResource @Params
         $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
@@ -399,9 +413,10 @@ function Export-TargetResource
         foreach ($search in $searches)
         {
             $Params = @{
-                Name                  = $search.Name
-                Case                  = $case.Name
-                GlobalAdminAccount    = $GlobalAdminAccount
+                Name               = $search.Name
+                Case               = $case.Name
+                GlobalAdminAccount = $GlobalAdminAccount
+                RawInputObject     = $search
             }
             Write-Host "        |---[$i/$($searches.Name.Count)] $($search.Name)" -NoNewLine
             $Results = Get-TargetResource @Params

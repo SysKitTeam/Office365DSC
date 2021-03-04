@@ -48,7 +48,8 @@ class PlannerTaskObject
 
     [void]PopulateById([System.Management.Automation.PSCredential]$GlobalAdminAccount, [String]$ApplicationId, [string]$TaskId)
     {
-        $uri = "https://graph.microsoft.com/beta/planner/tasks/$TaskId"
+        $resourceURL = Get-AzureEnvironmentEndpoint -AzureCloudEnvironmentName $Global:appIdentityParams.AzureCloudEnvironmentName -EndpointName MsGraphEndpointResourceId
+        $uri = "$resourceURL/beta/planner/tasks/$TaskId"
         $taskResponse = Invoke-MSCloudLoginMicrosoftGraphAPI -CloudCredential $GlobalAdminAccount `
             -ApplicationId $ApplicationId `
             -Uri $uri `
@@ -249,7 +250,8 @@ class PlannerTaskObject
 
     [void]Create([System.Management.Automation.PSCredential]$GlobalAdminAccount, [String]$ApplicationId)
     {
-        $uri = "https://graph.microsoft.com/v1.0/planner/tasks"
+        $resourceURL = Get-AzureEnvironmentEndpoint -AzureCloudEnvironmentName $Global:appIdentityParams.AzureCloudEnvironmentName -EndpointName MsGraphEndpointResourceId
+        $uri = "$resourceURL/v1.0/planner/tasks"
         $body = $this.ConvertToJSONTask()
         $taskResponse = Invoke-MSCloudLoginMicrosoftGraphAPI -CloudCredential $GlobalAdminAccount `
             -ApplicationId $ApplicationId `
@@ -263,7 +265,8 @@ class PlannerTaskObject
 
     [void]Update([System.Management.Automation.PSCredential]$GlobalAdminAccount, [String]$ApplicationId)
     {
-        $uri = "https://graph.microsoft.com/beta/planner/tasks/$($this.TaskId)"
+        $resourceURL = Get-AzureEnvironmentEndpoint -AzureCloudEnvironmentName $Global:appIdentityParams.AzureCloudEnvironmentName -EndpointName MsGraphEndpointResourceId
+        $uri = "$resourceURL/beta/planner/tasks/$($this.TaskId)"
         $body = $this.ConvertToJSONTask()
         $Headers = @{}
         $Headers.Add("If-Match", $this.ETag)
@@ -277,7 +280,8 @@ class PlannerTaskObject
 
     [void]UpdateDetails([System.Management.Automation.PSCredential]$GlobalAdminAccount, [String]$ApplicationId)
     {
-        $uri = "https://graph.microsoft.com/v1.0/planner/tasks/$($this.TaskId)/details"
+        $resourceURL = Get-AzureEnvironmentEndpoint -AzureCloudEnvironmentName $Global:appIdentityParams.AzureCloudEnvironmentName -EndpointName MsGraphEndpointResourceId
+        $uri = "$resourceURL/v1.0/planner/tasks/$($this.TaskId)/details"
         $body = $this.ConvertToJSONTaskDetails()
 
         # Get ETag for the details
@@ -299,7 +303,8 @@ class PlannerTaskObject
     {
         $VerbosePreference = 'Continue'
         Write-Verbose -Message "Initiating the Deletion of Task {$TaskId}"
-        $uri = "https://graph.microsoft.com/v1.0/planner/tasks/$TaskId"
+        $resourceURL = Get-AzureEnvironmentEndpoint -AzureCloudEnvironmentName $Global:appIdentityParams.AzureCloudEnvironmentName -EndpointName MsGraphEndpointResourceId
+        $uri = "$resourceURL/v1.0/planner/tasks/$TaskId"
 
         # Get ETag for the details
         $currentTaskDetails = Invoke-MSCloudLoginMicrosoftGraphAPI -CloudCredential $GlobalAdminAccount `

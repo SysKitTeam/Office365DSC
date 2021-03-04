@@ -136,80 +136,19 @@ function Start-M365DSCConfigurationExtract
 
     $AzureAutomation = $false
     $version = (Get-Module 'Microsoft365DSC').Version
-    $DSCContent = "# Generated with Microsoft365DSC version $version`r`n"
-    $DSCContent += "# For additional information on how to use Microsoft365DSC, please visit https://aka.ms/M365DSC`r`n"
-    if ($ConnectionMode -eq 'Credential')
-    {
-        $DSCContent += "param (`r`n"
-        $DSCContent += "    [parameter()]`r`n"
-        $DSCContent += "    [System.Management.Automation.PSCredential]`r`n"
-        $DSCContent += "    `$GlobalAdminAccount`r`n"
-        $DSCContent += ")`r`n`r`n"
-    }
-    else
-    {
-        if (-not [System.String]::IsNullOrEmpty($CertificatePassword))
-        {
-            $DSCContent += "param (`r`n"
-            $DSCContent += "    [parameter()]`r`n"
-            $DSCContent += "    [System.Management.Automation.PSCredential]`r`n"
-            $DSCContent += "    `$CertificatePassword`r`n"
-            $DSCContent += ")`r`n`r`n"
-        }
-    }
-
-    if (-not [System.String]::IsNullOrEmpty($FileName))
-    {
-        $FileParts = $FileName.Split('.')
-
-        if ([System.String]::IsNullOrEmpty($ConfigurationName))
-        {
-            $ConfigurationName = $FileName.Replace('.' + $FileParts[$FileParts.Length - 1], "")
-        }
-    }
-    if ([System.String]::IsNullOrEmpty($ConfigurationName))
-    {
-        $ConfigurationName = 'M365TenantConfig'
-    }
-    $DSCContent += "Configuration $ConfigurationName`r`n{`r`n"
 
     if ($ConnectionMode -eq 'Credential')
     {
-        $DSCContent += "    param (`r`n"
-        $DSCContent += "        [parameter()]`r`n"
-        $DSCContent += "        [System.Management.Automation.PSCredential]`r`n"
-        $DSCContent += "        `$GlobalAdminAccount`r`n"
-        $DSCContent += "    )`r`n`r`n"
-        $DSCContent += "    if (`$null -eq `$GlobalAdminAccount)`r`n"
-        $DSCContent += "    {`r`n"
-        $DSCContent += "        <# Credentials #>`r`n"
-        $DSCContent += "    }`r`n"
-        $DSCContent += "    else`r`n"
-        $DSCContent += "    {`r`n"
-        $DSCContent += "        `$Credsglobaladmin = `$GlobalAdminAccount`r`n"
-        $DSCContent += "    }`r`n`r`n"
-        $DSCContent += "    `$OrganizationName = `$Credsglobaladmin.UserName.Split('@')[1]`r`n"
+        # Add the GlobalAdminAccount to the Credentials List
+        Save-Credentials -UserName "globaladmin"
     }
     else
     {
-        if (-not [System.String]::IsNullOrEmpty($CertificatePassword))
-        {
-            $DSCContent += "    param (`r`n"
-            $DSCContent += "        [parameter()]`r`n"
-            $DSCContent += "        [System.Management.Automation.PSCredential]`r`n"
-            $DSCContent += "        `$CertificatePassword`r`n"
-            $DSCContent += "    )`r`n`r`n"
-            $DSCContent += "    if (`$null -eq `$CertificatePassword)`r`n"
-            $DSCContent += "    {`r`n"
-            $DSCContent += "        <# Credentials #>`r`n"
-            $DSCContent += "    }`r`n"
-            $DSCContent += "    else`r`n"
-            $DSCContent += "    {`r`n"
-            $DSCContent += "        `$CredsCertificatePassword = `$CertificatePassword`r`n"
-            $DSCContent += "    }`r`n`r`n"
-        }
+        Save-Credentials -UserName "certificatepassword"
+    }
 
-        $DSCContent += "    `$OrganizationName = `$ConfigurationData.NonNodeData.OrganizationName`r`n"
+    if ($ConnectionMode -ne 'Credential')
+    {
         Add-ConfigurationDataEntry -Node "NonNodeData" `
             -Key "OrganizationName" `
             -Value $organization `
@@ -242,37 +181,79 @@ function Start-M365DSCConfigurationExtract
                 -Description "Thumbprint of the certificate to use for authentication"
         }
     }
-    $DSCContent += "    Import-DscResource -ModuleName Microsoft365DSC`r`n`r`n"
-    $DSCContent += "    Node localhost`r`n"
-    $DSCContent += "    {`r`n"
 
     Add-ConfigurationDataEntry -Node "localhost" `
         -Key "ServerNumber" `
         -Value "0" `
         -Description "Default Value Used to Ensure a Configuration Data File is Generated"
 
-    if ($ConnectionMode -eq 'Credential')
+
+    $shouldOpenOutputDirectory = !$Quiet
+    #region Prompt the user for a location to save the extract and generate the files
+    if ([System.String]::IsNullOrEmpty($Path))
     {
-        # Add the GlobalAdminAccount to the Credentials List
-        Save-Credentials -UserName "globaladmin"
+        $shouldOpenOutputDirectory = $true
+        $OutputDSCPath = Read-Host "Destination Path"
     }
     else
     {
-        Save-Credentials -UserName "certificatepassword"
+        $OutputDSCPath = $Path
     }
+
+    if ([System.String]::IsNullOrEmpty($OutputDSCPath))
+    {
+        $OutputDSCPath = '.'
+    }
+
+    while ((Test-Path -Path $OutputDSCPath -PathType Container -ErrorAction SilentlyContinue) -eq $false)
+    {
+        try
+        {
+            Write-Information "Directory `"$OutputDSCPath`" doesn't exist; creating..."
+            New-Item -Path $OutputDSCPath -ItemType Directory | Out-Null
+            if ($?)
+            {
+                break
+            }
+        }
+        catch
+        {
+            Write-Warning "$($_.Exception.Message)"
+            Write-Warning "Could not create folder $OutputDSCPath!"
+        }
+        $OutputDSCPath = Read-Host "Please Provide Output Folder for DSC Configuration (Will be Created as Necessary)"
+    }
+    <## Ensures the path we specify ends with a Slash, in order to make sure the resulting file path is properly structured. #>
+    if (!$OutputDSCPath.EndsWith("\") -and !$OutputDSCPath.EndsWith("/"))
+    {
+        $OutputDSCPath += "\"
+    }
+    #endregion
+
+
+    # this is to avoid problems with unicode charachters when executing the generated ps1 file
+    $Utf8BomEncoding = New-Object System.Text.UTF8Encoding $True
+
+
+
 
     $ResourcesPath = Join-Path -Path $PSScriptRoot `
         -ChildPath "..\DSCResources\" `
         -Resolve
     $AllResources = Get-ChildItem $ResourcesPath -Recurse | Where-Object { $_.Name -like 'MSFT_*.psm1' }
 
+
+
+
     $i = 1
     $ResourcesToExport = @()
+    $resourceExtractionStates = @{}
     foreach ($ResourceModule in $AllResources)
     {
         try
         {
-            $resourceName = $ResourceModule.Name.Split('.')[0].Replace('MSFT_', '')
+            $msftResourceName = $ResourceModule.Name.Split('.')[0];
+            $resourceName = $msftResourceName.Replace('MSFT_', '')
             [array]$currentWorkload = $ResourceName.Substring(0, 2)
             switch ($currentWorkload.ToUpper())
             {
@@ -327,13 +308,16 @@ function Start-M365DSCConfigurationExtract
                     break
                 }
             }
+
+            $resourceExtractionStates[$msftResourceName] = 'NotIncluded'
             if (($null -ne $ComponentsToExtract -and
-                ($ComponentsToExtract -contains $resourceName -or $ComponentsToExtract -contains ("chck" + $resourceName))) -or
+                    ($ComponentsToExtract -contains $resourceName -or $ComponentsToExtract -contains ("chck" + $resourceName))) -or
                 $AllComponents -or ($null -ne $Workloads -and $Workloads -contains $currentWorkload) -or `
                 ($null -eq $ComponentsToExtract -and $null -eq $Workloads) -and `
                 ($ComponentsToExtractSpecified -or -not $ComponentsToSkip.Contains($resourceName)))
             {
                 $ResourcesToExport += $ResourceModule
+                $resourceExtractionStates[$msftResourceName] = 'ToBeLoaded'
             }
         }
         catch
@@ -343,19 +327,22 @@ function Start-M365DSCConfigurationExtract
     }
 
     $platformSkipsNotified = @()
+    $resourceTimeTotalTaken = @{}
     foreach ($resource in $ResourcesToExport)
     {
-        $resourceName = $resource.Name.Split('.')[0].Replace('MSFT_', '')
+        $stopWatch = [system.diagnostics.stopwatch]::StartNew()
+        $msftResourceName = $resource.Name.Split('.')[0];
+        $resourceName = $msftResourceName.Replace('MSFT_', '')
         try
         {
             $shouldSkipBecauseOfFailedPlatforms = $false
             [array]$usedPlatforms = Get-ResourcePlatformUsage -Resource $resourceName -ResourceModuleFilePath $resource.FullName
-            foreach($platform in $usedPlatforms)
+            foreach ($platform in $usedPlatforms)
             {
                 # we will skip PnP if there was a problem connecting to a specific site
                 # it could be a permissions issue
                 # if it was a problem with connecting to the admin site, then we know that all else will fail as well so no need to continue
-                if($platform -eq 'PnP' -and $null -ne $Global:SPOAdminUrl -and $Global:SPOConnectionUrl -ne $Global:SPOAdminUrl)
+                if ($platform -eq 'PnP' -and $null -ne $Global:SPOAdminUrl -and $Global:SPOConnectionUrl -ne $Global:SPOAdminUrl)
                 {
                     continue
                 }
@@ -363,15 +350,16 @@ function Start-M365DSCConfigurationExtract
                 Write-Verbose "The isConnectionAvailable flag is $isAvailable for $platform"
                 $shouldSkipBecauseOfFailedPlatforms = $shouldSkipBecauseOfFailedPlatforms -or !$isAvailable
                 Write-Verbose "The shouldskip flag is $shouldSkipBecauseOfFailedPlatforms for $platform"
-                if(!$isAvailable -and !$platformSkipsNotified.Contains($platform))
+                if (!$isAvailable -and !$platformSkipsNotified.Contains($platform))
                 {
                     Write-Error "The [$platform] connection has failed and all of the related resources will be skipped to avoid unnecessary errors."
                     $platformSkipsNotified += $platform
                 }
             }
 
-            if($shouldSkipBecauseOfFailedPlatforms)
+            if ($shouldSkipBecauseOfFailedPlatforms)
             {
+                $resourceExtractionStates[$msftResourceName] = 'SkippedBecauseOfPreviousConnectionFailure'
                 Write-Verbose "Skipped [$resourceName] because of connection problems with the used MsCloudLogin platform"
                 continue;
             }
@@ -387,7 +375,7 @@ function Start-M365DSCConfigurationExtract
             $CertPasswordExists = (Get-Command 'Export-TargetResource').Parameters.Keys.Contains("CertificatePassword")
 
             $parameters = @{}
-            if ($GlobalAdminExists-and -not [System.String]::IsNullOrEmpty($GlobalAdminAccount))
+            if ($GlobalAdminExists -and -not [System.String]::IsNullOrEmpty($GlobalAdminAccount))
             {
                 $parameters.Add("GlobalAdminAccount", $GlobalAdminAccount)
             }
@@ -437,14 +425,14 @@ function Start-M365DSCConfigurationExtract
                     [System.Management.Automation.Language.Token[]]$tokens = $null;
                     [System.Management.Automation.Language.ParseError[]]$parseErrors = $null;
                     [void][System.Management.Automation.Language.Parser]::ParseInput($exportString, [ref]$tokens, [ref]$parseErrors)
-                    if($parseErrors.Length -gt 0)
+                    if ($parseErrors.Length -gt 0)
                     {
                         Write-Error "The [$resourceName] resource encountered an error and will not be available in the extracted data"
                         Write-Verbose "The [$resourceName] had parse errors"
                         Write-Verbose "#######PARSE ERRORS START####################"
-                        foreach($parseError in $parseErrors)
+                        foreach ($parseError in $parseErrors)
                         {
-                           Write-Verbose $parseError
+                            Write-Verbose $parseError
                         }
                         Write-Verbose "#######PARSE INPUT WITH ERRORS START######################"
                         Write-Verbose $exportString
@@ -458,30 +446,67 @@ function Start-M365DSCConfigurationExtract
                     Write-Error $_
                 }
 
-                if($psParseErrorOccurred)
+                if ($psParseErrorOccurred)
                 {
                     $exportString = ""
+                    $resourceExtractionStates[$msftResourceName] = 'PsParseError'
+                }
+                else
+                {
+                    $resourceExtractionStates[$msftResourceName] = 'Extracted'
                 }
             }
-            $DSCContent += $exportString
+            else
+            {
+                $resourceExtractionStates[$msftResourceName] = 'NotIncluded'
+            }
+
+            $fileStream = $null
+            $sw = $null
+            try
+            {
+                if (![string]::IsNullOrEmpty($exportString))
+                {
+                    $resOutputFilePath = Join-Path $OutputDSCPath "$($resourceName)_TenantConfig.ps1"
+                    $fileStream = [System.IO.File]::OpenWrite("$resOutputFilePath")
+
+                    $sw = New-Object System.IO.StreamWriter -ArgumentList @($fileStream, $Utf8BomEncoding)
+                    Write-DscStartFileContents -Writer $sw
+                    $sw.Write($exportString)
+                    Write-DscEndingFileContents $sw
+                }
+            }
+            finally
+            {
+                if ($sw)
+                {
+                    $sw.Dispose()
+                }
+                if ($fileStream)
+                {
+                    $fileStream.Dispose()
+                }
+            }
+
             $exportString = $null
         }
         catch
         {
+            $resourceExtractionStates[$msftResourceName] = 'ExtractionError'
             $ex = $_.Exception
             $isMissingGrantError = $false
 
-            while($null -ne $ex -and $ex.GetType().FullName -ne "Microsoft.IdentityModel.Clients.ActiveDirectory.AdalServiceException")
+            while ($null -ne $ex -and $ex.GetType().FullName -ne "Microsoft.IdentityModel.Clients.ActiveDirectory.AdalServiceException")
             {
                 $ex = $ex.InnerException
             }
 
-            if($null -ne $ex -and $ex.ErrorCode -eq "invalid_grant" -and $null -ne $ex.ServiceErrorCodes -and $ex.ServiceErrorCodes.Contains("65001"))
+            if ($null -ne $ex -and $ex.ErrorCode -eq "invalid_grant" -and $null -ne $ex.ServiceErrorCodes -and $ex.ServiceErrorCodes.Contains("65001"))
             {
                 $isMissingGrantError = $true
             }
 
-            if($isMissingGrantError -and $currentWorkload -eq 'PP')
+            if ($isMissingGrantError -and $currentWorkload -eq 'PP')
             {
                 Write-Verbose "PowerApps service app permissions are not granted. The enteriprise application is most likely missing.`nVisit the PowerApps admin center to get it created and rerun the Trace Configuration Wizard"
 
@@ -492,60 +517,20 @@ function Start-M365DSCConfigurationExtract
             {
                 New-M365DSCLogEntry -Error $_ -Message $ResourceModule.Name -Source "[O365DSCReverse]$($ResourceModule.Name)"
             }
-		}
+        }
         finally
         {
+            $stopWatch.Stop()
             $WarningPreference = $DefaultWarningPreference;
             $VerbosePreference = $DefaultVerbosePreference;
-		}
+        }
+
+        $resourceTimeTotalTaken[$msftResourceName] = $stopWatch.Elapsed.TotalSeconds
     }
 
-    # Close the Node and Configuration declarations
-    $DSCContent += "    }`r`n"
-    $DSCContent += "}`r`n"
 
-    if ($ConnectionMode -eq 'Credential')
-    {
-        #region Add the Prompt for Required Credentials at the top of the Configuration
-        $credsContent = ""
-        foreach ($credential in $Global:CredsRepo)
-        {
-            if (!$credential.ToLower().StartsWith("builtin"))
-            {
-                if (!$AzureAutomation)
-                {
-                    $credsContent += "        " + (Resolve-Credentials $credential) + " = Get-Credential -Message `"Global Admin credentials`"`r`n"
-                }
-                else
-                {
-                    $resolvedName = (Resolve-Credentials $credential)
-                    $credsContent += "    " + $resolvedName + " = Get-AutomationPSCredential -Name " + ($resolvedName.Replace("$", "")) + "`r`n"
-                }
-            }
-        }
-        $credsContent += "`r`n"
-        $startPosition = $DSCContent.IndexOf("<# Credentials #>") + 19
-        $DSCContent = $DSCContent.Insert($startPosition, $credsContent)
-        $DSCContent += "$ConfigurationName -ConfigurationData .\ConfigurationData.psd1 -GlobalAdminAccount `$GlobalAdminAccount"
-        #endregion
-    }
-    else
-    {
-        if (-not [System.String]::IsNullOrEmpty($CertificatePassword))
-        {
-            $certCreds =$Global:CredsRepo[0]
-            $credsContent = ""
-            $credsContent += "        " + (Resolve-Credentials $certCreds) + " = Get-Credential -Message `"Certificate Password`""
-            $credsContent += "`r`n"
-            $startPosition = $DSCContent.IndexOf("<# Credentials #>") + 19
-            $DSCContent = $DSCContent.Insert($startPosition, $credsContent)
-            $DSCContent += "$ConfigurationName -ConfigurationData .\ConfigurationData.psd1 -CertificatePassword `$CertificatePassword"
-        }
-        else
-        {
-            $DSCContent += "$ConfigurationName -ConfigurationData .\ConfigurationData.psd1"
-        }
-    }
+    # dont' leave dangling remote sessions, there can only be a couple of them for EXO and SC
+    Remove-RemoteSessions
 
     #region Benchmarks
     $M365DSCExportEndTime = [System.DateTime]::Now
@@ -556,60 +541,7 @@ function Start-M365DSCConfigurationExtract
     Write-Host "}"
     #endregion
 
-    $shouldOpenOutputDirectory = !$Quiet
-    #region Prompt the user for a location to save the extract and generate the files
-    if ([System.String]::IsNullOrEmpty($Path))
-    {
-        $shouldOpenOutputDirectory = $true
-        $OutputDSCPath = Read-Host "Destination Path"
-    }
-    else
-    {
-        $OutputDSCPath = $Path
-    }
-
-    if ([System.String]::IsNullOrEmpty($OutputDSCPath))
-    {
-        $OutputDSCPath = '.'
-    }
-
-    while ((Test-Path -Path $OutputDSCPath -PathType Container -ErrorAction SilentlyContinue) -eq $false)
-    {
-        try
-        {
-            Write-Information "Directory `"$OutputDSCPath`" doesn't exist; creating..."
-            New-Item -Path $OutputDSCPath -ItemType Directory | Out-Null
-            if ($?)
-            {
-                break
-            }
-        }
-        catch
-        {
-            Write-Warning "$($_.Exception.Message)"
-            Write-Warning "Could not create folder $OutputDSCPath!"
-        }
-        $OutputDSCPath = Read-Host "Please Provide Output Folder for DSC Configuration (Will be Created as Necessary)"
-    }
-    <## Ensures the path we specify ends with a Slash, in order to make sure the resulting file path is properly structured. #>
-    if (!$OutputDSCPath.EndsWith("\") -and !$OutputDSCPath.EndsWith("/"))
-    {
-        $OutputDSCPath += "\"
-    }
-    #endregion
-
-    if (-not [System.String]::IsNullOrEmpty($FileName))
-    {
-        $outputDSCFile = $OutputDSCPath + $FileName
-    }
-    else
-    {
-        $outputDSCFile = $OutputDSCPath + "M365TenantConfig.ps1"
-    }
-
-     # this is to avoid problems with unicode charachters when executing the generated ps1 file
-    $Utf8BomEncoding = New-Object System.Text.UTF8Encoding $True
-    [System.IO.File]::WriteAllText($outputDSCFile, $DSCContent, $Utf8BomEncoding)
+    Write-ExtractionStates -OutputDSCPath $OutputDSCPath -ResourceExtractionStates $resourceExtractionStates -ResourceTimeTotalTaken $resourceTimeTotalTaken
 
     if (!$AzureAutomation)
     {
@@ -644,6 +576,96 @@ function Start-M365DSCConfigurationExtract
     }
 }
 
+
+function Remove-RemoteSessions
+{
+    $prevConfirmPreference = $ConfirmPreference
+    try
+    {
+        $ConfirmPreference = 'None'
+
+        # this will disconnect all of the Exhange but also all of the Security and Compliance sessions
+        #Disconnect-ExchangeOnline
+
+        # this code is basically copy pasted from Disconnect-ExchangeOnline
+        # the reason why we are not using Disconnect-ExchangeOnline is because it asks for a confirmation and $ConfirmPreference = 'None' does nothing, at least when running fron inside the script
+        # inside a powershell window $ConfirmPreference = 'None' works as expected, but not when running within Trace or debugging in VSCode
+        $existingPSSession = Get-PSSession | Where-Object { ($_.ConfigurationName -like "Microsoft.Exchange" -and $_.Name -like "ExchangeOnlineInternalSession*") -or $_.Name -like 'SfBPowerShellSession*' }
+
+        if ($existingPSSession.count -gt 0)
+        {
+            for ($index = 0; $index -lt $existingPSSession.count; $index++)
+            {
+                $session = $existingPSSession[$index]
+                Remove-PSSession -session $session
+
+                # Remove any previous modules loaded because of the current PSSession
+                if ($null -ne $session.PreviousModuleName)
+                {
+                    if ((Get-Module $session.PreviousModuleName).Count -ne 0)
+                    {
+                        Remove-Module -Name $session.PreviousModuleName -ErrorAction SilentlyContinue
+                    }
+
+                    $session.PreviousModuleName = $null
+                }
+
+                # Remove any leaked module in case of removal of broken session object
+                if ($null -ne $session.CurrentModuleName)
+                {
+                    if ((Get-Module $session.CurrentModuleName).Count -ne 0)
+                    {
+                        Remove-Module -Name $session.CurrentModuleName -ErrorAction SilentlyContinue
+                    }
+                }
+            }
+        }
+    }
+    catch
+    {
+        Write-Error "Error while disconnecting remote sessions"
+        Write-Error $_
+    }
+    finally
+    {
+        $ConfirmPreference = $prevConfirmPreference
+    }
+}
+
+function Write-ExtractionStates
+{
+    param(
+
+        [Parameter(Mandatory = $true)]
+        $OutputDSCPath,
+
+        [Parameter(Mandatory = $true)]
+        $ResourceExtractionStates,
+
+        [Parameter(Mandatory = $true)]
+        $ResourceTimeTotalTaken
+    )
+
+    # create a file containing the extraction states for all resources
+    $outputExtractionStatesFile = Join-Path $OutputDSCPath "ExtractionStates.json"
+
+    $resultingExtractionStatesObject = @{}
+    foreach ($key in $ResourceExtractionStates.Keys)
+    {
+        $timeTaken = 0
+        if ($ResourceTimeTotalTaken.ContainsKey($key))
+        {
+            $timeTaken = $ResourceTimeTotalTaken[$key]
+        }
+        $resultingExtractionStatesObject[$key] = @{
+            State     = $ResourceExtractionStates[$key]
+            TimeTaken = $timeTaken
+        }
+    }
+
+    ConvertTo-Json -InputObject $resultingExtractionStatesObject | Out-File -FilePath $outputExtractionStatesFile -Encoding utf8
+}
+
 function Check-PlatformAvailability
 {
     [CmdletBinding()]
@@ -674,10 +696,10 @@ function Get-ResourcePlatformUsage
     $matches = [Regex]::Matches($fileContent, '-Platform\s+''?(?<platform>\w+)''?', [ System.Text.RegularExpressions.RegexOptions]::IgnoreCase);
 
     $platforms = @()
-    foreach($match in $matches)
+    foreach ($match in $matches)
     {
         $platform = $match.Groups["platform"].Value
-        if($platforms.Contains($platform))
+        if ($platforms.Contains($platform))
         {
             continue
         }
@@ -685,4 +707,97 @@ function Get-ResourcePlatformUsage
     }
 
     return $platforms
+}
+
+function Write-DscStartFileContents
+{
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.IO.TextWriter]
+        $Writer
+    )
+    $Writer.WriteLine("# Generated with Microsoft365DSC version $version")
+    $Writer.WriteLine("# For additional information on how to use Microsoft365DSC, please visit https://aka.ms/M365DSC")
+    if ($ConnectionMode -eq 'Credential')
+    {
+        $Writer.WriteLine("param (")
+        $Writer.WriteLine("    [parameter()]")
+        $Writer.WriteLine("    [System.Management.Automation.PSCredential]")
+        $Writer.WriteLine("    `$GlobalAdminAccount")
+        $Writer.WriteLine(")`r`n")
+    }
+    else
+    {
+        if (-not [System.String]::IsNullOrEmpty($CertificatePassword))
+        {
+            $Writer.WriteLine("param (")
+            $Writer.WriteLine("    [parameter()]")
+            $Writer.WriteLine("    [System.Management.Automation.PSCredential]")
+            $Writer.WriteLine("    `$CertificatePassword")
+            $Writer.WriteLine(")`r`n")
+        }
+    }
+
+    $ConfigurationName = 'M365TenantConfig'
+
+    $Writer.WriteLine("Configuration $ConfigurationName`r`n{")
+
+    if ($ConnectionMode -eq 'Credential')
+    {
+        $Writer.WriteLine("    param (")
+        $Writer.WriteLine("        [parameter()]")
+        $Writer.WriteLine("        [System.Management.Automation.PSCredential]")
+        $Writer.WriteLine("        `$GlobalAdminAccount")
+        $Writer.WriteLine("    )`r`n")
+        $Writer.WriteLine("    if (`$null -eq `$GlobalAdminAccount)")
+        $Writer.WriteLine("    {")
+        $Writer.WriteLine("        <# Credentials #>")
+        $Writer.WriteLine("    }")
+        $Writer.WriteLine("    else")
+        $Writer.WriteLine("    {")
+        $Writer.WriteLine("        `$Credsglobaladmin = `$GlobalAdminAccount")
+        $Writer.WriteLine("    }`r`n")
+        $Writer.WriteLine("    `$OrganizationName = `$Credsglobaladmin.UserName.Split('@')[1]")
+    }
+    else
+    {
+        if (-not [System.String]::IsNullOrEmpty($CertificatePassword))
+        {
+            $Writer.WriteLine("    param (")
+            $Writer.WriteLine("        [parameter()]")
+            $Writer.WriteLine("        [System.Management.Automation.PSCredential]")
+            $Writer.WriteLine("        `$CertificatePassword")
+            $Writer.WriteLine("    )`r`n")
+            $Writer.WriteLine("    if (`$null -eq `$CertificatePassword)")
+            $Writer.WriteLine("    {")
+            $Writer.WriteLine("        <# Credentials #>")
+            $Writer.WriteLine("    }")
+            $Writer.WriteLine("    else")
+            $Writer.WriteLine("    {")
+            $Writer.WriteLine("        `$CredsCertificatePassword = `$CertificatePassword")
+            $Writer.WriteLine("    }`r`n")
+        }
+
+        $Writer.WriteLine("    `$OrganizationName = `$ConfigurationData.NonNodeData.OrganizationName")
+    }
+    $Writer.WriteLine("    Import-DscResource -ModuleName Microsoft365DSC`r`n")
+    $Writer.WriteLine("    Node localhost")
+    $Writer.WriteLine("    {")
+}
+
+function Write-DscEndingFileContents
+{
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.IO.TextWriter]
+        $Writer
+    )
+
+    $ConfigurationName = 'M365TenantConfig'
+
+    # Close the Node and Configuration declarations
+    $writer.WriteLine("    }")
+    $writer.WriteLine("}")
+
+    $writer.WriteLine("$ConfigurationName -ConfigurationData .\ConfigurationData.psd1")
 }

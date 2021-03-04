@@ -3,6 +3,10 @@ class MSFT_TeamsUpgradePolicy : OMI_BaseResource
 {
     [Key, Description("Identity of the Teams Upgrade Policy.")] String Identity;
     [Write, Description("List of users that will be granted the Upgrade Policy to.")] String Users[];
+    [Write, Description("Description of the policy.")] String Description;
+    [Write, Description("Mode defines in which client incoming chats and calls land as well as in what service (Teams or Skype for Business) new meetings are scheduled in. Mode also governs whether chat, calling, and meeting scheduling functionality are available in the Teams client.")] String Mode;
+    [Write, Description("Determines whether users who are assigned this policy will see a notification in their Skype for Business client about a pending upgrade to Teams. In addition, if NotifySfBUsers=true and TeamsUpgradeConfiguration has DownloadTeams=true, Win32 versions of Skype for Business will silently download the Teams client.")] Boolean NotifySfbUsers;
+    [Write, Description("")] String Action;
     [Write, Description("Specifies whether to move existing Skype for Business meetings organized by the user to Teams. This parameter can only be true if the mode of the specified policy instance is either TeamsOnly or SfBWithTeamsCollabAndMeetings, and if the policy instance is being granted to a specific user. It not possible to trigger meeting migration when granting TeamsUpgradePolicy to the entire tenant.")] Boolean MigrateMeetingsToTeams;
     [Write, Description("Credentials of the SharePoint Global Admin"), EmbeddedInstance("MSFT_Credential")] String GlobalAdminAccount;
 };

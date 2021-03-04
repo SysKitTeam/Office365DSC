@@ -39,7 +39,10 @@ function Get-TargetResource
 
         [Parameter(Mandatory = $true)]
         [System.Management.Automation.PSCredential]
-        $GlobalAdminAccount
+        $GlobalAdminAccount,
+
+        [Parameter()]
+        $RawInputObject
     )
 
     Write-Verbose -Message "Getting configuration of SCCaseHoldPolicy for $Name"
@@ -52,19 +55,28 @@ function Get-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    if ($Global:CurrentModeIsExport)
+    $PolicyObject = $null
+    if ($RawInputObject)
     {
-        $ConnectionMode = New-M365DSCConnection -Platform 'SecurityComplianceCenter' `
-            -InboundParameters $PSBoundParameters `
-            -SkipModuleReload $true
+        $PolicyObject = $RawInputObject
     }
     else
     {
-        $ConnectionMode = New-M365DSCConnection -Platform 'SecurityComplianceCenter' `
-            -InboundParameters $PSBoundParameters
+        if ($Global:CurrentModeIsExport)
+        {
+            $ConnectionMode = New-M365DSCConnection -Platform 'SecurityComplianceCenter' `
+                -InboundParameters $PSBoundParameters `
+                -SkipModuleReload $true
+        }
+        else
+        {
+            $ConnectionMode = New-M365DSCConnection -Platform 'SecurityComplianceCenter' `
+                -InboundParameters $PSBoundParameters
+        }
+
+        $PolicyObject = Get-CaseHoldPolicy -Case $Case -Identity $Name -ErrorAction SilentlyContinue
     }
 
-    $PolicyObject = Get-CaseHoldPolicy -Case $Case -Identity $Name -ErrorAction SilentlyContinue
 
     if ($null -eq $PolicyObject)
     {
@@ -345,9 +357,10 @@ function Export-TargetResource
         {
             Write-Host "        |---[$j/$($policies.Count)] $($policy.Name)" -NoNewLine
             $Params = @{
-                Name                  = $policy.Name
-                Case                  = $case.Name
-                GlobalAdminAccount    = $GlobalAdminAccount
+                Name               = $policy.Name
+                Case               = $case.Name
+                GlobalAdminAccount = $GlobalAdminAccount
+                RawInputObject     = $policy
             }
             $Results = Get-TargetResource @Params
             $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
