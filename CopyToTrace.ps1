@@ -1,6 +1,9 @@
-Remove-Item 'C:\GitProjects\SysKitTrace\SysKit.SPDocKit.Office365\UtilProjects\MSCloudLoginAssistant\**' -Force -Recurse
-Copy-Item 'C:\GitProjects\MSCloudLoginAssistant-SysKit\Modules\MSCloudLoginAssistant\**' 'C:\GitProjects\SysKitTrace\SysKit.SPDocKit.Office365\UtilProjects\MSCloudLoginAssistant\' -Force -Recurse
+$traceSrcLocation = 'C:\Projects\SysKitTrace'
+$msCloudLoginAssistantSrcLocation = 'C:\Projects\MSCloudLoginAssistant-SysKit'
+$m36SrcLocation = 'C:\Projects\M65DSC-SysKit'
+Remove-Item "$traceSrcLocation\SysKit.SPDocKit.Office365\UtilProjects\MSCloudLoginAssistant\**" -Force -Recurse
+Copy-Item "$msCloudLoginAssistantSrcLocation\Modules\MSCloudLoginAssistant\**" "$traceSrcLocation\SysKit.SPDocKit.Office365\UtilProjects\MSCloudLoginAssistant\" -Force -Recurse
 
 
-Remove-Item 'C:\GitProjects\SysKitTrace\SysKit.SPDocKit.Office365\UtilProjects\Microsoft365DSC\**' -Force -Recurse
-Copy-Item 'C:\GitProjects\Office365DSC-SysKit\Modules\Microsoft365DSC\**' 'C:\GitProjects\SysKitTrace\SysKit.SPDocKit.Office365\UtilProjects\Microsoft365DSC\' -Force -Recurse
+Remove-Item "$traceSrcLocation\SysKit.SPDocKit.Office365\UtilProjects\Microsoft365DSC\**" -Force -Recurse
+Copy-Item "$m36SrcLocation\Modules\Microsoft365DSC\**" "$traceSrcLocation\SysKit.SPDocKit.Office365\UtilProjects\Microsoft365DSC\" -Force -Recurse
