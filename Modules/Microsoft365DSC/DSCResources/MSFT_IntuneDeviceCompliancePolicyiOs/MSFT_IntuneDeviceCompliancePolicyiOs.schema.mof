@@ -18,5 +18,5 @@ class MSFT_IntuneDeviceCompliancePolicyiOs : OMI_BaseResource
     [Write, Description("DeviceThreatProtectionRequiredSecurityLevel of the iOS device compliance policy.")] String DeviceThreatProtectionRequiredSecurityLevel;
     [Write, Description("ManagedEmailProfileRequired of the iOS device compliance policy.")] Boolean ManagedEmailProfileRequired;
     [Write, Description("Present ensures the policy exists, absent ensures it is removed."), ValueMap{"Present","Absent"}, Values{"Present","Absent"}] string Ensure;
-    [Required, Description("Credentials of the Intune Admin"), EmbeddedInstance("MSFT_Credential")] String GlobalAdminAccount;
+    [Write, Description("Credentials of the Intune Admin"), EmbeddedInstance("MSFT_Credential")] String GlobalAdminAccount;
 };
