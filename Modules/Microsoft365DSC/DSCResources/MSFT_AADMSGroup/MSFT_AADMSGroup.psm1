@@ -86,26 +86,38 @@ function Get-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    if($RawInputObject)
-    {
-        $Group = $RawInputObject
-    }
-    else
-    {
-        $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' -InboundParameters $PSBoundParameters
+
     $nullReturn = $PSBoundParameters
     $nullReturn.Ensure = "Absent"
     try
     {
-        if ($PSBoundParameters.ContainsKey("Id"))
+        if ($RawInputObject)
         {
-            Write-Verbose -Message "GroupID was specified"
-            try
+            $Group = $RawInputObject
+        }
+        else
+        {
+            $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' -InboundParameters $PSBoundParameters
+            if ($PSBoundParameters.ContainsKey("Id"))
             {
-                $Group = Get-AzureADMSGroup -Id $Id -ErrorAction Stop
+                Write-Verbose -Message "GroupID was specified"
+                try
+                {
+                    $Group = Get-AzureADMSGroup -Id $Id -ErrorAction Stop
+                }
+                catch
+                {
+                    $Group = Get-AzureADMSGroup -Filter "DisplayName eq '$DisplayName'" -ErrorAction Stop
+                    if ($Group.Length -gt 1)
+                    {
+                        throw "Duplicate AzureAD Groups named $DisplayName exist in tenant"
+                    }
+                }
             }
-            catch
+            else
             {
+                Write-Verbose -Message "Id was NOT specified"
+                ## Can retreive multiple AAD Groups since displayname is not unique
                 $Group = Get-AzureADMSGroup -Filter "DisplayName eq '$DisplayName'" -ErrorAction Stop
                 if ($Group.Length -gt 1)
                 {
@@ -113,47 +125,37 @@ function Get-TargetResource
                 }
             }
         }
+
+
+        if ($null -eq $Group)
+        {
+            return $nullReturn
+        }
         else
         {
-            Write-Verbose -Message "Id was NOT specified"
-            ## Can retreive multiple AAD Groups since displayname is not unique
-            $Group = Get-AzureADMSGroup -Filter "DisplayName eq '$DisplayName'" -ErrorAction Stop
-            if ($Group.Length -gt 1)
-            {
-                throw "Duplicate AzureAD Groups named $DisplayName exist in tenant"
-            }
-        }
-    }
+            Write-Verbose -Message "Found existing AzureAD Group"
 
-    if ($null -eq $Group)
-    {
-            return $nullReturn
-    }
-    else
-    {
-        Write-Verbose -Message "Found existing AzureAD Group"
-
-        $result = @{
-            DisplayName                   = $Group.DisplayName
-            Id                            = $Group.Id
-            Description                   = $Group.Description
-            GroupTypes                    = [System.String[]]$Group.GroupTypes
-            MembershipRule                = $Group.MembershipRule
-            MembershipRuleProcessingState = $Group.MembershipRuleProcessingState
-            SecurityEnabled               = $Group.SecurityEnabled
-            MailEnabled                   = $Group.MailEnabled
+            $result = @{
+                DisplayName                   = $Group.DisplayName
+                Id                            = $Group.Id
+                Description                   = $Group.Description
+                GroupTypes                    = [System.String[]]$Group.GroupTypes
+                MembershipRule                = $Group.MembershipRule
+                MembershipRuleProcessingState = $Group.MembershipRuleProcessingState
+                SecurityEnabled               = $Group.SecurityEnabled
+                MailEnabled                   = $Group.MailEnabled
                 IsAssignableToRole            = $Group.IsAssignableToRole
-            MailNickname                  = $Group.MailNickname
-            Visibility                    = $Group.Visibility
-            Ensure                        = "Present"
-            GlobalAdminAccount            = $GlobalAdminAccount
-            ApplicationId                 = $ApplicationId
-            TenantId                      = $TenantId
-            CertificateThumbprint         = $CertificateThumbprint
+                MailNickname                  = $Group.MailNickname
+                Visibility                    = $Group.Visibility
+                Ensure                        = "Present"
+                GlobalAdminAccount            = $GlobalAdminAccount
+                ApplicationId                 = $ApplicationId
+                TenantId                      = $TenantId
+                CertificateThumbprint         = $CertificateThumbprint
+            }
+            Write-Verbose -Message "Get-TargetResource Result: `n $(Convert-M365DscHashtableToString -Hashtable $result)"
+            return $result
         }
-        Write-Verbose -Message "Get-TargetResource Result: `n $(Convert-M365DscHashtableToString -Hashtable $result)"
-        return $result
-    }
     }
     catch
     {
@@ -294,8 +296,8 @@ function Set-TargetResource
             }
             else
             {
-            Set-AzureADMSGroup @currentParameters
-        }
+                Set-AzureADMSGroup @currentParameters
+            }
         }
         catch
         {
@@ -466,41 +468,41 @@ function Export-TargetResource
     try
     {
         [array] $groups = Get-AzureADMSGroup -All:$true -ErrorAction Stop
-    $i = 1
-    $dscContent = ''
+        $i = 1
+        $dscContent = ''
         Write-Host "`r`n" -NoNewline
-    foreach ($group in $groups)
-    {
+        foreach ($group in $groups)
+        {
             Write-Host "    |---[$i/$($groups.Count)] $($group.DisplayName)" -NoNewline
-        $Params = @{
-            GlobalAdminAccount    = $GlobalAdminAccount
-            DisplayName           = $group.DisplayName
-            Id                    = $group.Id
-            ApplicationId         = $ApplicationId
-            TenantId              = $TenantId
-            CertificateThumbprint = $CertificateThumbprint
-            RawInputObject        = $group
+            $Params = @{
+                GlobalAdminAccount    = $GlobalAdminAccount
+                DisplayName           = $group.DisplayName
+                Id                    = $group.Id
+                ApplicationId         = $ApplicationId
+                TenantId              = $TenantId
+                CertificateThumbprint = $CertificateThumbprint
+                RawInputObject        = $group
+            }
+            $Results = Get-TargetResource @Params
+            if (!$Results.MembershipRuleProcessingState)
+            {
+                $Results.Remove("MembershipRuleProcessingState")
+            }
+            if (!$Results.Visibility)
+            {
+                $Results.Remove("Visibility")
+            }
+            $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
+                -Results $Results
+            $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
+                -ConnectionMode $ConnectionMode `
+                -ModulePath $PSScriptRoot `
+                -Results $Results `
+                -GlobalAdminAccount $GlobalAdminAccount
+            Write-Host $Global:M365DSCEmojiGreenCheckMark
+            $i++
         }
-        $Results = Get-TargetResource @Params
-        if(!$Results.MembershipRuleProcessingState)
-        {
-            $Results.Remove("MembershipRuleProcessingState")
-        }
-        if(!$Results.Visibility)
-        {
-            $Results.Remove("Visibility")
-        }
-        $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
-            -Results $Results
-        $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
-            -ConnectionMode $ConnectionMode `
-            -ModulePath $PSScriptRoot `
-            -Results $Results `
-            -GlobalAdminAccount $GlobalAdminAccount
-        Write-Host $Global:M365DSCEmojiGreenCheckMark
-        $i++
-    }
-    return $dscContent
+        return $dscContent
     }
     catch
     {
