@@ -68,102 +68,120 @@ function Get-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    $nullReturn = @{
-        DisplayName           = $DisplayName
-        MailNickName          = $Name
-        Description           = $null
-        ManagedBy             = $null
-        GlobalAdminAccount    = $GlobalAdminAccount
-        ApplicationId         = $ApplicationId
-        TenantId              = $TenantId
-        CertificateThumbprint = $CertificateThumbprint
-        Ensure                = "Absent"
-    }
-
-    if($RawInputObject)
-    {
-        [array]$ADGroup = $RawInputObject
-        Write-Verbose -Message "Using cached value of Group {$($DisplayName)}"
-    }
-    else
-    {
-        $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
-            -InboundParameters $PSBoundParameters
-
-        Write-Verbose -Message "Retrieving AzureADGroup by MailNickName {$MailNickName}"
-        [array]$ADGroup = Get-AzureADMSGroup -All:$true | Where-Object -FilterScript {$_.MailNickName -eq $MailNickName}
-        if ($null -eq $ADGroup)
-        {
-            Write-Verbose -Message "Retrieving AzureADGroup by DisplayName {$DisplayName}"
-            [array]$ADGroup = Get-AzureADMSGroup -All:$true | Where-Object -FilterScript {$_.DisplayName -eq $DisplayName}
-            if ($null -eq $ADGroup)
-            {
-                Write-Verbose -Message "Office 365 Group {$DisplayName} was not found."
-                return $nullReturn
-            }
-            elseif ($ADGroup.Length -gt 1)
-            {
-                $Message = "Multiple O365 groups were found with DisplayName {$DisplayName}. Please specify the MailNickName parameter to uniquely identify the group."
-                New-M365DSCLogEntry -Error $_ -Message $Message -Source $MyInvocation.MyCommand.ModuleName
-            }
-        }
-        Write-Verbose -Message "Found Existing Instance of Group {$($ADGroup.DisplayName)}"
-    }
+    $nullReturn = $PSBoundParameters
+    $nullReturn.Ensure = "Absent"
 
     try
     {
-        $membersList = Get-AzureADGroupMember -ObjectId $ADGroup[0].Id
-        Write-Verbose -Message "Found Members for Group {$($ADGroup[0].DisplayName)}"
-        $owners = Get-AzureADGroupOwner -ObjectId $ADGroup[0].Id
-        Write-Verbose -Message "Found Owners for Group {$($ADGroup[0].DisplayName)}"
-        $ownersUPN = @()
-        if ($null -ne $owners)
+        if($RawInputObject)
         {
-            # Need to cast as an array for the test to properly compare cases with
-            # a single owner;
-            $ownersUPN = [System.String[]]$owners.UserPrincipalName
+            [array]$ADGroup = $RawInputObject
+            Write-Verbose -Message "Using cached value of Group {$($DisplayName)}"
+        }
+        else
+        {
+            $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
+            -InboundParameters $PSBoundParameters
 
-            # Also need to remove the owners from the members list for Test
-            # to handle the validation properly;
-            $newMemberList = @()
-
-            foreach ($member in $membersList)
+            Write-Verbose -Message "Retrieving AzureADGroup by MailNickName {$MailNickName}"
+            [array]$ADGroup = Get-AzureADMSGroup -All:$true | Where-Object -FilterScript {$_.MailNickName -eq $MailNickName}
+            if ($null -eq $ADGroup)
             {
-                if ($null -ne $ownersUPN -and $ownersUPN.Length -ge 1 -and `
-                    -not [System.String]::IsNullOrEmpty($member.UserPrincipalName) -and `
-                    -not $ownersUPN.Contains($member.UserPrincipalName))
+                Write-Verbose -Message "Retrieving AzureADGroup by DisplayName {$DisplayName}"
+                [array]$ADGroup = Get-AzureADMSGroup -All:$true | Where-Object -FilterScript {$_.DisplayName -eq $DisplayName}
+                if ($null -eq $ADGroup)
                 {
-                    $newMemberList += $member.UserPrincipalName
+                    Write-Verbose -Message "Office 365 Group {$DisplayName} was not found."
+                    return $nullReturn
+                }
+                elseif ($ADGroup.Length -gt 1)
+                {
+                    $Message = "Multiple O365 groups were found with DisplayName {$DisplayName}. Please specify the MailNickName parameter to uniquely identify the group."
+                    New-M365DSCLogEntry -Error $_ -Message $Message -Source $MyInvocation.MyCommand.ModuleName
                 }
             }
+            Write-Verbose -Message "Found Existing Instance of Group {$($ADGroup.DisplayName)}"
         }
 
-        $description = ""
-        if ($null -ne $ADGroup[0].Description)
+        try
         {
-            $description = $ADGroup[0].Description.ToString()
-        }
+            $membersList = Get-AzureADGroupMember -ObjectId $ADGroup[0].Id
+            Write-Verbose -Message "Found Members for Group {$($ADGroup[0].DisplayName)}"
+            $owners = Get-AzureADGroupOwner -ObjectId $ADGroup[0].Id
+            Write-Verbose -Message "Found Owners for Group {$($ADGroup[0].DisplayName)}"
+            $ownersUPN = @()
+            if ($null -ne $owners)
+            {
+                # Need to cast as an array for the test to properly compare cases with
+                # a single owner;
+                $ownersUPN = [System.String[]]$owners.UserPrincipalName
 
-        $returnValue = @{
-            DisplayName           = $ADGroup[0].DisplayName
-            MailNickName          = $ADGroup[0].MailNickName
-            Members               = $newMemberList
-            ManagedBy             = $ownersUPN
-            Description           = $description
-            GlobalAdminAccount    = $GlobalAdminAccount
-            ApplicationId         = $ApplicationId
-            TenantId              = $TenantId
-            CertificateThumbprint = $CertificateThumbprint
-            Ensure                = "Present"
+                # Also need to remove the owners from the members list for Test
+                # to handle the validation properly;
+                $newMemberList = @()
+
+                foreach ($member in $membersList)
+                {
+                    if ($null -ne $ownersUPN -and $ownersUPN.Length -ge 1 -and `
+                        -not [System.String]::IsNullOrEmpty($member.UserPrincipalName) -and `
+                        -not $ownersUPN.Contains($member.UserPrincipalName))
+                    {
+                        $newMemberList += $member.UserPrincipalName
+                    }
+                }
+            }
+
+            $description = ""
+            if ($null -ne $ADGroup[0].Description)
+            {
+                $description = $ADGroup[0].Description.ToString()
+            }
+
+            $returnValue = @{
+                DisplayName           = $ADGroup[0].DisplayName
+                MailNickName          = $ADGroup[0].MailNickName
+                Members               = $newMemberList
+                ManagedBy             = $ownersUPN
+                Description           = $description
+                GlobalAdminAccount    = $GlobalAdminAccount
+                ApplicationId         = $ApplicationId
+                TenantId              = $TenantId
+                CertificateThumbprint = $CertificateThumbprint
+                Ensure                = "Present"
+            }
+            return $returnValue
         }
-        return $returnValue
+        catch
+        {
+            $Message = "An error occured retrieving info for Group $DisplayName"
+            New-M365DSCLogEntry -Error $_ -Message $Message -Source $MyInvocation.MyCommand.ModuleName
+        }
+        return $nullReturn
     }
     catch
     {
-        $Message = "An error occured retrieving info for Group $DisplayName"
-        New-M365DSCLogEntry -Error $_ -Message $Message -Source $MyInvocation.MyCommand.ModuleName
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
+        return $nullReturn
     }
-    return $nullReturn
 }
 
 function Set-TargetResource
@@ -348,7 +366,7 @@ function Set-TargetResource
             }
         }
     }
-    elseif($Ensure -eq "Absent")
+    elseif ($Ensure -eq "Absent")
     {
         try
         {
@@ -358,7 +376,7 @@ function Set-TargetResource
         {
             Write-Error -Message "Could not find group $($currrentGroup.MailNickName)"
         }
-        if($existingO365Group.Length -eq 1)
+        if ($existingO365Group.Length -eq 1)
         {
             Write-Verbose -Message "Removing O365Group $($existingO365Group.Name)"
             Remove-UnifiedGroup -Identity $existingO365Group.Name -confirm:$false -Force
@@ -426,6 +444,15 @@ function Test-TargetResource
         [System.Management.Automation.PSCredential]
         $CertificatePassword
     )
+    #region Telemetry
+    $ResourceName = $MyInvocation.MyCommand.ModuleName.Replace("MSFT_", "")
+    $data = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
+    $data.Add("Resource", $ResourceName)
+    $data.Add("Method", $MyInvocation.MyCommand)
+    $data.Add("Principal", $GlobalAdminAccount.UserName)
+    $data.Add("TenantId", $TenantId)
+    Add-M365DSCTelemetryEvent -Data $data
+    #endregion
 
     Write-Verbose -Message "Testing configuration of Office 365 Group $DisplayName"
 
@@ -434,7 +461,7 @@ function Test-TargetResource
     Write-Verbose -Message "Current Values: $(Convert-M365DscHashtableToString -Hashtable $CurrentValues)"
     Write-Verbose -Message "Target Values: $(Convert-M365DscHashtableToString -Hashtable $PSBoundParameters)"
 
-    $TestResult = Test-Microsoft365DSCParameterState -CurrentValues $CurrentValues `
+    $TestResult = Test-M365DSCParameterState -CurrentValues $CurrentValues `
         -Source $($MyInvocation.MyCommand.Source) `
         -DesiredValues $PSBoundParameters
 
@@ -484,38 +511,65 @@ function Export-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    $dscContent = ''
-    $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
-        -InboundParameters $PSBoundParameters
-    $groups = Get-AzureADMSGroup -All $true |  where-object {$_.GroupTypes -contains "Unified"}
-
-    $i = 1
-    Write-Host "`r`n" -NoNewLine
-    foreach ($group in $groups)
+    try
     {
-        Write-Host "    |---[$i/$($groups.Length)] $($group.DisplayName)" -NoNewLine
-        $Params = @{
-            GlobalAdminAccount    = $GlobalAdminAccount
-            ApplicationId         = $ApplicationId
-            TenantId              = $TenantId
-            CertificateThumbprint = $CertificateThumbprint
-            DisplayName           = $group.DisplayName
-            ManagedBy             = "DummyUser"
-            MailNickName          = $group.MailNickName
-            RawInputObject        = $group
+        $dscContent = ''
+        $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
+            -InboundParameters $PSBoundParameters
+        $groups = Get-AzureADMSGroup -All $true |  where-object {$_.GroupTypes -contains "Unified"}
+
+        $i = 1
+            Write-Host "`r`n" -NoNewline
+        foreach ($group in $groups)
+        {
+                Write-Host "    |---[$i/$($groups.Length)] $($group.DisplayName)" -NoNewline
+            $Params = @{
+                GlobalAdminAccount    = $GlobalAdminAccount
+                ApplicationId         = $ApplicationId
+                TenantId              = $TenantId
+                CertificateThumbprint = $CertificateThumbprint
+                DisplayName           = $group.DisplayName
+                ManagedBy             = "DummyUser"
+                MailNickName          = $group.MailNickName
+                RawInputObject        = $group
+            }
+            $Results = Get-TargetResource @Params
+            $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
+                -Results $Results
+            $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
+                -ConnectionMode $ConnectionMode `
+                -ModulePath $PSScriptRoot `
+                -Results $Results `
+                -GlobalAdminAccount $GlobalAdminAccount
+            Write-Host $Global:M365DSCEmojiGreenCheckMark
+            $i++
         }
-        $Results = Get-TargetResource @Params
-        $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
-            -Results $Results
-        $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
-            -ConnectionMode $ConnectionMode `
-            -ModulePath $PSScriptRoot `
-            -Results $Results `
-            -GlobalAdminAccount $GlobalAdminAccount
-        Write-Host $Global:M365DSCEmojiGreenCheckMark
-        $i++
+        return $dscContent
     }
-    return $dscContent
+    catch
+    {
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
+        return ""
+    }
 }
 
 Export-ModuleMember -Function *-TargetResource

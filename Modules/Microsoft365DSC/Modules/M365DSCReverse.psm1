@@ -36,7 +36,7 @@ function Start-M365DSCConfigurationExtract
         $MaxProcesses = 16,
 
         [Parameter()]
-        [ValidateSet('AAD', 'SPO', 'EXO', 'SC', 'OD', 'O365', 'TEAMS', 'PP')]
+        [ValidateSet('AAD', 'SPO', 'EXO', 'INTUNE', 'SC', 'OD', 'O365', 'TEAMS', 'PP', 'PLANNER')]
         [System.String[]]
         $Workloads,
 
@@ -58,10 +58,6 @@ function Start-M365DSCConfigurationExtract
         $TenantId,
 
         [Parameter()]
-        [System.string]
-        $ApplicationSecret,
-
-        [Parameter()]
         [System.String]
         $CertificateThumbprint,
 
@@ -73,6 +69,7 @@ function Start-M365DSCConfigurationExtract
         [System.Management.Automation.PSCredential]
         $CertificatePassword
     )
+
     $M365DSCExportStartTime = [System.DateTime]::Now
     $InformationPreference = "Continue"
 
@@ -94,24 +91,24 @@ function Start-M365DSCConfigurationExtract
     {
         $ComponentsToExtractSpecified = $true
     }
+
+    # Get Tenant Info
     $organization = ""
     $principal = "" # Principal represents the "NetBios" name of the tenant (e.g. the M365DSC part of M365DSC.onmicrosoft.com)
-    $ConnectionMode = $null
-    if (-not [String]::IsNullOrEmpty($ApplicationId) -and `
-            -not [String]::IsNullOrEmpty($TenantId) -and `
-            -not [String]::IsNullOrEmpty($CertificateThumbprint))
+
+    if ($AuthMethods -Contains 'Application')
     {
         $ConnectionMode = 'ServicePrincipal'
         $organization = Get-M365DSCTenantDomain -ApplicationId $ApplicationId `
             -TenantId $TenantId `
             -CertificateThumbprint $CertificateThumbprint
     }
-    elseif (-not [String]::IsNullOrEmpty($CertificatePath))
+    elseif ($AuthMethods -Contains 'Certificate')
     {
         $ConnectionMode = 'ServicePrincipal'
         $organization = $TenantId
     }
-    elseif (-not [String]::IsNullOrEmpty($GlobalAdminAccount))
+    elseif ($AuthMethods -Contains 'Credentials')
     {
         $ConnectionMode = 'Credential'
         if ($null -ne $GlobalAdminAccount -and $GlobalAdminAccount.UserName.Contains("@"))
@@ -123,17 +120,6 @@ function Start-M365DSCConfigurationExtract
     {
         $principal = $organization.Split(".")[0]
     }
-
-    $ComponentsToSkip = @()
-    if ($Mode -eq 'Default')
-    {
-        $ComponentsToSkip = $Global:FullComponents
-    }
-    elseif ($Mode -eq 'Lite')
-    {
-        $ComponentsToSkip = $Global:DefaultComponents + $Global:FullComponents
-    }
-
     $AzureAutomation = $false
     $version = (Get-Module 'Microsoft365DSC').Version
 
@@ -265,6 +251,11 @@ function Start-M365DSCConfigurationExtract
                 'EX'
                 {
                     $currentWorkload = 'EXO';
+                    break
+                }
+                'IN'
+                {
+                    $currentWorkload = 'INTUNE';
                     break
                 }
                 'O3'
@@ -414,7 +405,7 @@ function Start-M365DSCConfigurationExtract
                 if ($GenerateInfo)
                 {
                     $exportString += "`r`n        # For information on how to use this resource, please refer to:`r`n"
-                    $exportString += "        # https://github.com/microsoft/Microsoft365DSC/wiki/$resourceName`r`n"
+                $exportString += "        # https://github.com/microsoft/Microsoft365DSC/wiki/$($resource.Name.Split('.')[0].Replace('MSFT_', ''))`r`n"
                 }
                 $exportString += Export-TargetResource @parameters
                 $i++
@@ -542,33 +533,6 @@ function Start-M365DSCConfigurationExtract
     #endregion
 
     Write-ExtractionStates -OutputDSCPath $OutputDSCPath -ResourceExtractionStates $resourceExtractionStates -ResourceTimeTotalTaken $resourceTimeTotalTaken
-
-    if (!$AzureAutomation)
-    {
-        $LCMConfig = Get-DscLocalConfigurationManager
-        if ($null -ne $LCMConfig.CertificateID)
-        {
-            try
-            {
-                # Export the certificate assigned to the LCM
-                $certPath = $OutputDSCPath + "M365DSC.cer"
-                Export-Certificate -FilePath $certPath `
-                    -Cert "cert:\LocalMachine\my\$($LCMConfig.CertificateID)" `
-                    -Type CERT `
-                    -NoClobber | Out-Null
-                Add-ConfigurationDataEntry -Node "localhost" `
-                    -Key "CertificateFile" `
-                    -Value "M365DSC.cer" `
-                    -Description "Path of the certificate used to encrypt credentials in the file."
-            }
-            catch
-            {
-                Write-Verbose -Message $_
-            }
-        }
-        $outputConfigurationData = $OutputDSCPath + "ConfigurationData.psd1"
-        New-ConfigurationDataDocument -Path $outputConfigurationData
-    }
 
     if ($shouldOpenOutputDirectory)
     {

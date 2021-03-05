@@ -8,7 +8,11 @@ function New-M365DSCConfigurationToHTML
 
         [Parameter(Mandatory = $true)]
         [System.String]
-        $OutputPath
+        $OutputPath,
+
+        [Parameter()]
+        [Switch]
+        $SortProperties
     )
 
     $TemplateFile = Get-Item $ConfigurationPath
@@ -29,15 +33,45 @@ function New-M365DSCConfigurationToHTML
         $partHTML += "<strong>" + $resource.ResourceName + "</strong>"
         $partHTML += "</th></tr>"
 
-        foreach ($property in $resource.Keys)
+        if ($SortProperties) 
+        {
+            $properties = $resource.Keys | Sort-Object
+        }
+        else 
+        {
+            $properties = $resource.Keys
+        }
+
+        foreach ($property in $properties)
         {
             if ($property -ne "ResourceName" -and $property -ne "GlobalAdminAccount")
             {
                 $partHTML += "<tr><td width='40%' style='padding:5px;text-align:right;border:1px solid black;'><strong>" + $property + "</strong></td>"
-                $value = "Null"
+                $value = "`$Null"
                 if ($null -ne $resource.$property)
                 {
-                    $value = ($resource.$property).ToString().Replace("$","")
+                    if ($resource.$property.GetType().Name -eq 'Object[]')
+                    {
+                        $temp = $resource.$property -join ','
+                        [array]$components = $temp.Split(',')
+                        if ($components.Length -gt 0 -and 
+                            -not [System.String]::IsNullOrEmpty($temp))
+                        {
+                            $Value = "<ul>"
+                            foreach ($comp in $components)
+                            {
+                                $value += "<li>$comp</li>"
+                            }
+                            $value += "</ul>"
+                        }
+                    }
+                    else
+                    {
+                        if (-not [System.String]::IsNullOrEmpty($resource.$property))
+                        {
+                            $value = ($resource.$property).ToString()
+                        }
+                    }
                 }
                 $partHTML += "<td width='40%' style='padding:5px;border:1px solid black;'>" + $value + "</td></tr>"
             }
@@ -140,15 +174,23 @@ function New-M365DSCConfigurationToExcel
                 {
                     if ([System.String]::IsNullOrEmpty($resource.$property))
                     {
-                        $report.Cells.Item($row,3) = "null"
+                        $report.Cells.Item($row,3) = "`$Null"
                     }
                     else
                     {
-                        $value = ($resource.$property).ToString().Replace("$","")
-                        $value = $value.Replace("@","")
-                        $value = $value.Replace("(","")
-                        $value = $value.Replace(")","")
-                        $report.Cells.Item($row,3) = $value
+                        if ($resource.$property.GetType().Name -eq 'Object[]')
+                        {
+                            $value = $resource.$property -join ','                            
+                            $report.Cells.Item($row,3) = $value
+                        }
+                        else
+                        {
+                            $value = ($resource.$property).ToString().Replace("$","")
+                            $value = $value.Replace("@","")
+                            $value = $value.Replace("(","")
+                            $value = $value.Replace(")","")
+                            $report.Cells.Item($row,3) = $value
+                        }
                     }
 
                     $report.Cells.Item($row,3).HorizontalAlignment = -4131
@@ -156,9 +198,11 @@ function New-M365DSCConfigurationToExcel
                 catch
                 {
                     Write-Verbose -Message $_
+                    Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                        -EventID 1 -Source $($MyInvocation.MyCommand.Source)
                 }
 
-                if ($property -in @("Identity", "Name", "IsSingleInstance"))
+                if ($property -in @("Identity", "Name", "IsSingleInstance", "DisplayName"))
                 {
                     $OriginPropertyName = $report.Cells.Item($beginRow, 2).Text
                     $OriginPropertyValue = $report.Cells.Item($beginRow, 3).Text
@@ -476,6 +520,10 @@ function Get-M365DSCResourceKey
     {
         return @("Key")
     }
+    elseif ($Resource.Contains("Usage"))
+    {
+        return @("Usage")
+    }
 }
 
 function New-M365DSCDeltaReport
@@ -500,7 +548,11 @@ function New-M365DSCDeltaReport
 
         [Parameter()]
         [System.Boolean]
-        $IsBlueprintAssessment = $false
+        $IsBlueprintAssessment = $false,
+
+        [Parameter()]
+        [System.String]
+        $HeaderFilePath
     )
 
     #region Telemetry
@@ -513,6 +565,23 @@ function New-M365DSCDeltaReport
     $Delta = Compare-M365DSCConfigurations -Source $Source -Destination $Destination -CaptureTelemetry $false
 
     $reportSB = [System.Text.StringBuilder]::new()
+    #region Custom Header
+    if (-not [System.String]::IsNullOrEmpty($HeaderFilePath))
+    {
+        try
+        {
+            $headerContent = Get-Content $HeaderFilePath
+            [void]$reportSB.AppendLine($headerContent)
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source)
+        }
+    }
+    #endregion
+
     $ReportTitle = "Microsoft365DSC - Delta Report"
     if ($IsBlueprintAssessment)
     {
@@ -538,7 +607,7 @@ function New-M365DSCDeltaReport
     if ($resourcesMissingInSource.Count -eq 0 -and $resourcesMissingInDestination.Count -eq 0 -and `
         $resourcesInDrift.Count -eq 0)
     {
-        [void]$reportSB.AppendLine("<p><strong>No discrepencies have been found!</strong></p>")
+        [void]$reportSB.AppendLine("<p><strong>No discrepancies have been found!</strong></p>")
     }
     elseif (-not $DriftOnly)
     {

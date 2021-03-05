@@ -3,7 +3,7 @@ on: [push]
 
 jobs:
   # This workflow contains a single job called "build"
-  build:
+  Integration-PublicCloud:
     # The type of runner that the job will run on
     runs-on: windows-latest
 
@@ -37,13 +37,12 @@ jobs:
         winrm quickconfig -force
         $source = "./Modules/Microsoft365DSC/"
         $destination = "C:\Program Files\WindowsPowerShell\Modules"
-        Copy-Item -Path $source -Recurse -Destination $destination -Container
+        Copy-Item -Path $source -Recurse -Destination $destination -Container -Force
     - name: Run Integration Tests
       shell : powershell
       env:
         PUBLIC_USERNAME: ${{ secrets.PUBLIC_USERNAME }}
         PUBLIC_PASSWORD: ${{ secrets.PUBLIC_PASSWORD }}
-        PUBLIC_DOMAIN: ${{ secrets.PUBLIC_DOMAIN }}
       run: |
        Set-ExecutionPolicy Unrestricted -Force
        Get-ChildItem "C:\Program Files\WindowsPowerShell\Modules" -Recurse | Unblock-File
@@ -51,7 +50,9 @@ jobs:
        Set-M365DSCTelemetryOption -Enabled $false
        $VerbosePreference = 'Continue'
        Write-Verbose -Message "Username: $($env:PUBLIC_USERNAME)"
-       & ./Tests/Integration/M365DSCIntegration.Master.Tests.ps1 -GlobalAdminUser $env:PUBLIC_USERNAME -GlobalAdminPassword $env:PUBLIC_PASSWORD -Domain $env:PUBLIC_DOMAIN
+       & ./Tests/Integration/M365DSCIntegration.Master.Tests.ps1 `
+       -GlobalAdminUser $env:PUBLIC_USERNAME `
+       -GlobalAdminPassword $env:PUBLIC_PASSWORD
     - name: Validate Configuration
       shell: powershell
       run: |

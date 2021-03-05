@@ -52,17 +52,12 @@ function Get-TargetResource
     $ConnectionMode = New-M365DSCConnection -Platform 'PowerPlatforms' `
         -InboundParameters $PSBoundParameters
 
-    $nullReturn = @{
-        DisplayName        = $DisplayName
-        Location           = $Location
-        EnvironmentSKU     = $EnvironmentSKU
-        Ensure             = 'Absent'
-        GlobalAdminAccount = $null
-    }
+    $nullReturn = $PSBoundParameters
+    $nullReturn.Ensure = "Absent"
 
     try
     {
-        $environment = Get-AdminPowerAppEnvironment | Where-Object -FilterScript { $_.DisplayName -eq $DisplayName }
+        $environment = Get-AdminPowerAppEnvironment -ErrorAction Stop | Where-Object -FilterScript { $_.DisplayName -eq $DisplayName }
 
         if ($null -eq $environment)
         {
@@ -81,7 +76,26 @@ function Get-TargetResource
     }
     catch
     {
-        Write-Verbose $_
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
         return $nullReturn
     }
 }
@@ -207,6 +221,15 @@ function Test-TargetResource
         [System.String]
         $CertificateThumbprint
     )
+    #region Telemetry
+    $ResourceName = $MyInvocation.MyCommand.ModuleName.Replace("MSFT_", "")
+    $data = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
+    $data.Add("Resource", $ResourceName)
+    $data.Add("Method", $MyInvocation.MyCommand)
+    $data.Add("Principal", $GlobalAdminAccount.UserName)
+    $data.Add("TenantId", $TenantId)
+    Add-M365DSCTelemetryEvent -Data $data
+    #endregion
 
     Write-Verbose -Message "Testing configuration for PowerApps Environment {$DisplayName}"
     $CurrentValues = Get-TargetResource @PSBoundParameters
@@ -216,7 +239,7 @@ function Test-TargetResource
 
     $ValuesToCheck = $PSBoundParameters
     $ValuesToCheck.Remove("GlobalAdminAccount") | Out-Null
-    $TestResult = Test-Microsoft365DSCParameterState -CurrentValues $CurrentValues `
+    $TestResult = Test-M365DSCParameterState -CurrentValues $CurrentValues `
         -Source $($MyInvocation.MyCommand.Source) `
         -DesiredValues $PSBoundParameters `
         -ValuesToCheck $ValuesToCheck.Keys
@@ -260,14 +283,15 @@ function Export-TargetResource
 
     $ConnectionMode = New-M365DSCConnection -Platform 'PowerPlatforms' `
         -InboundParameters $PSBoundParameters
-
-    [array]$environments = Get-AdminPowerAppEnvironment
+    try
+    {
+        [array]$environments = Get-AdminPowerAppEnvironment -ErrorAction Stop
     $dscContent = ''
     $i = 1
-    Write-Host "`r`n" -NoNewLine
+        Write-Host "`r`n" -NoNewline
     foreach ($environment in $environments)
     {
-        Write-Host "    |---[$i/$($environments.Count)] $($environment.DisplayName)" -NoNewLine
+            Write-Host "    |---[$i/$($environments.Count)] $($environment.DisplayName)" -NoNewline
         if ($environment.EnvironmentType -ne 'Default')
         {
             $Params = @{
@@ -292,6 +316,31 @@ function Export-TargetResource
         $i++
     }
     return $dscContent
+    }
+    catch
+    {
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
+        return ""
+    }
 }
 
 Export-ModuleMember -Function *-TargetResource

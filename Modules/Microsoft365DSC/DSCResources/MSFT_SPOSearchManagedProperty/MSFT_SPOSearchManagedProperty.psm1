@@ -131,29 +131,11 @@ function Get-TargetResource
     $ConnectionMode = New-M365DSCConnection -Platform 'PnP' `
                 -InboundParameters $PSBoundParameters -Url $CentralAdminUrl
 
-    $nullReturn = @{
-        Name                        = $Name
-        Type                        = $null
-        Description                 = $null
-        Searchable                  = $null
-        FullTextIndex               = $null
-        FullTextContext             = $null
-        Queryable                   = $null
-        Retrievable                 = $null
-        AllowMultipleValues         = $null
-        Refinable                   = $null
-        Sortable                    = $null
-        Safe                        = $null
-        Aliases                     = $null
-        TokenNormalization          = $null
-        CompleteMatching            = $null
-        LanguageNeutralTokenization = $null
-        FinerQueryTokenization      = $null
-        MappedCrawledProperties     = $null
-        CompanyNameExtraction       = $null
-        Ensure                      = "Absent"
-    }
+        $nullReturn = $PSBoundParameters
+        $nullReturn.Ensure = "Absent"
 
+        try
+        {
     if ($null -eq $Script:RecentMPExtract)
     {
         $Script:RecentMPExtract = [Xml] (Get-PnPSearchConfiguration -Scope Subscription)
@@ -223,6 +205,31 @@ function Get-TargetResource
         CompanyNameExtraction       = $CompanyNameExtraction
         Ensure                      = "Present"
     }
+        }
+        catch
+        {
+                try
+                {
+                        Write-Verbose -Message $_
+                        $tenantIdValue = ""
+                        if (-not [System.String]::IsNullOrEmpty($TenantId))
+                        {
+                                $tenantIdValue = $TenantId
+                        }
+                        elseif ($null -ne $GlobalAdminAccount)
+                        {
+                                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+                        }
+                        Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                                -TenantId $tenantIdValue
+                }
+                catch
+                {
+                        Write-Verbose -Message $_
+                }
+                return $nullReturn
+        }
 }
 
 function Set-TargetResource
@@ -361,7 +368,7 @@ function Set-TargetResource
     # Get the managed property back if it already exists.
     if ($null -eq $Script:RecentMPExtract)
     {
-        $Script:RecentMPExtract = [XML] (Get-PnpSearchConfiguration -Scope Subscription)
+                $Script:RecentMPExtract = [XML] (Get-PnPSearchConfiguration -Scope Subscription)
     }
 
     $property = $Script:RecentMPExtract.SearchConfigurationSettings.SearchSchemaConfigurationSettings.ManagedProperties.dictionary.KeyValueOfstringManagedPropertyInfoy6h3NzC8 `
@@ -607,7 +614,7 @@ function Set-TargetResource
         if ($null -eq $currentPID)
         {
             # Get the managed property back. This is the only way to ensure we have the right PID
-            $currentConfigXML = [XML] (Get-PnpSearchCOnfiguration -Scope Subscription)
+                        $currentConfigXML = [XML] (Get-PnPSearchConfiguration -Scope Subscription)
             $property = $currentConfigXML.SearchConfigurationSettings.SearchSchemaConfigurationSettings.ManagedProperties.dictionary.KeyValueOfstringManagedPropertyInfoy6h3NzC8 `
             | Where-Object -FilterScript { $_.Value.Name -eq $Name }
             $currentPID = $property.Value.Pid
@@ -778,6 +785,15 @@ function Test-TargetResource
         [System.Management.Automation.PSCredential]
         $CertificatePassword
     )
+        #region Telemetry
+        $ResourceName = $MyInvocation.MyCommand.ModuleName.Replace("MSFT_", "")
+        $data = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
+        $data.Add("Resource", $ResourceName)
+        $data.Add("Method", $MyInvocation.MyCommand)
+        $data.Add("Principal", $GlobalAdminAccount.UserName)
+        $data.Add("TenantId", $TenantId)
+        Add-M365DSCTelemetryEvent -Data $data
+        #endregion
 
     Write-Verbose -Message "Testing configuration for Managed Property instance $Name"
 
@@ -786,7 +802,7 @@ function Test-TargetResource
     Write-Verbose -Message "Current Values: $(Convert-M365DscHashtableToString -Hashtable $CurrentValues)"
     Write-Verbose -Message "Target Values: $(Convert-M365DscHashtableToString -Hashtable $PSBoundParameters)"
 
-    $TestResult = Test-Microsoft365DSCParameterState -CurrentValues $CurrentValues `
+        $TestResult = Test-M365DSCParameterState -CurrentValues $CurrentValues `
         -Source $($MyInvocation.MyCommand.Source) `
         -DesiredValues $PSBoundParameters `
         -ValuesToCheck @("Ensure", `
@@ -840,17 +856,19 @@ function Export-TargetResource
 
     $centralAdminUrl = Get-SPOAdminUrl -CloudCredential $GlobalAdminAccount
     $ConnectionMode = New-M365DSCConnection -Platform 'PnP' `
-                -InboundParameters $PSBoundParameters -Url $centralAdminUrl
-    $SearchConfig = [Xml] (Get-PnPSearchConfiguration -Scope Subscription)
-    [array]$properties = $SearchConfig.SearchConfigurationSettings.SearchSchemaConfigurationSettings.ManagedProperties.dictionary.KeyValueOfstringManagedPropertyInfoy6h3NzC8
-
-    $dscContent = ""
-    $i = 1
-    Write-Host "`r`n" -NoNewline
-    foreach ($property in $properties)
+                -InboundParameters $PSBoundParameters -Url $centralAdminUrl                
+    try
     {
-        Write-Host "    |---[$i/$($properties.Length)] $($property.Value.Name)" -NoNewline
-        $Params = @{
+        $SearchConfig = [Xml] (Get-PnPSearchConfiguration -Scope Subscription)
+        [array]$properties = $SearchConfig.SearchConfigurationSettings.SearchSchemaConfigurationSettings.ManagedProperties.dictionary.KeyValueOfstringManagedPropertyInfoy6h3NzC8
+
+        $dscContent = ""
+        $i = 1
+        Write-Host "`r`n" -NoNewline
+        foreach ($property in $properties)
+        {
+            Write-Host "    |---[$i/$($properties.Length)] $($property.Value.Name)" -NoNewline
+            $Params = @{
                 CentralAdminUrl       = $centralAdminUrl
                 GlobalAdminAccount    = $GlobalAdminAccount
                 Name                  = $property.Value.Name
@@ -860,19 +878,44 @@ function Export-TargetResource
                 CertificateThumbprint = $CertificateThumbprint
                 CertificatePath       = $CertificatePath
                 CertificatePassword   = $CertificatePassword
-        }
-        $Results = Get-TargetResource @Params
-        $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
+            }
+            $Results = Get-TargetResource @Params
+            $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
                 -Results $Results
-        $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
+            $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
                 -ConnectionMode $ConnectionMode `
                 -ModulePath $PSScriptRoot `
                 -Results $Results `
                 -GlobalAdminAccount $GlobalAdminAccount
-        $i++
-        Write-Host $Global:M365DSCEmojiGreenCheckmark
+            $i++
+            Write-Host $Global:M365DSCEmojiGreenCheckmark
+        }
+        return $dscContent
     }
-    return $dscContent
+    catch
+    {
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                    $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                    $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                    -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                    -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
+        return ""
+    }
 }
 
 Export-ModuleMember -Function *-TargetResource

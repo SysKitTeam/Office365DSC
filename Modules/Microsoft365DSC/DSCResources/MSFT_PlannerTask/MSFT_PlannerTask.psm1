@@ -96,99 +96,121 @@ function Get-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    $nullReturn = @{
-        PlanId                = $PlanId
-        Title                 = $Title
-        Ensure                = "Absent"
-        ApplicationId         = $ApplicationId
-        GlobalAdminAccount    = $GlobalAdminAccount
-    }
-
-    # If no TaskId were passed, automatically assume that this is a new task;
-    if ([System.String]::IsNullOrEmpty($TaskId))
-    {
-        return $nullReturn
-    }
+    $nullReturn = $PSBoundParameters
+    $nullReturn.Ensure = "Absent"
 
     try
     {
-        [PlannerTaskObject].GetType() | Out-Null
+        # If no TaskId were passed, automatically assume that this is a new task;
+        if ([System.String]::IsNullOrEmpty($TaskId))
+        {
+            return $nullReturn
+        }
+
+        try
+        {
+            [PlannerTaskObject].GetType() | Out-Null
+        }
+        catch
+        {
+            $ModulePath = Join-Path -Path $PSScriptRoot `
+                -ChildPath "../../Modules/GraphHelpers/PlannerTaskObject.psm1"
+            $usingScriptBody = "using module '$ModulePath'"
+            $usingScript = [ScriptBlock]::Create($usingScriptBody)
+            . $usingScript
+        }
+        $task = [PlannerTaskObject]::new()
+        Write-Verbose -Message "Populating task {$taskId} from the Get method"
+        $task.PopulateById($GlobalAdminAccount, $ApplicationId, $TaskId)
+
+        if ($null -eq $task)
+        {
+            return $nullReturn
+        }
+        else
+        {
+            $NotesValue = $task.Notes
+
+            #region Task Assignment
+            if ($task.Assignments.Length -gt 0)
+            {
+                $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
+            -InboundParameters $PSBoundParameters
+                $assignedValues = @()
+                foreach ($assignee in $task.Assignments)
+                {
+                    $user = Get-AzureADUser -ObjectId $assignee
+                    $assignedValues += $user.UserPrincipalName
+                }
+            }
+            #endregion
+
+            #region Task Categories
+            $categoryValues = @()
+            foreach ($category in $task.Categories)
+            {
+                $categoryValues += $category
+            }
+            #endregion
+
+            $StartDateTimeValue = $null
+            if ($null -ne $task.StartDateTime)
+            {
+                $StartDateTimeValue = $task.StartDateTime
+            }
+            $DueDateTimeValue = $null
+            if ($null -ne $task.DueDateTime)
+            {
+                $DueDateTimeValue = $task.DueDateTime
+            }
+            $results = @{
+                PlanId                = $PlanId
+                PlanName              = $PlanName
+                PlanOwnerGroupName    = $PlanOwnerGroupName
+                Title                 = $Title
+                AssignedUsers         = $assignedValues
+                TaskId                = $task.TaskId
+                Categories            = $categoryValues
+                Attachments           = $task.Attachments
+                Checklist             = $task.Checklist
+                Bucket                = $task.BucketId
+                Priority              = $task.Priority
+                ConversationThreadId  = $task.ConversationThreadId
+                PercentComplete       = $task.PercentComplete
+                StartDateTime         = $StartDateTimeValue
+                DueDateTime           = $DueDateTimeValue
+                Notes                 = $NotesValue
+                Ensure                = "Present"
+                ApplicationId         = $ApplicationId
+                GlobalAdminAccount    = $GlobalAdminAccount
+            }
+            Write-Verbose -Message "Get-TargetResource Result: `n $(Convert-M365DscHashtableToString -Hashtable $results)"
+            return $results
+        }
     }
     catch
     {
-        $ModulePath = Join-Path -Path $PSScriptRoot `
-            -ChildPath "../../Modules/GraphHelpers/PlannerTaskObject.psm1"
-        $usingScriptBody = "using module '$ModulePath'"
-        $usingScript = [ScriptBlock]::Create($usingScriptBody)
-        . $usingScript
-    }
-    $task = [PlannerTaskObject]::new()
-    Write-Verbose -Message "Populating task {$taskId} from the Get method"
-    $task.PopulateById($GlobalAdminAccount, $ApplicationId, $TaskId)
-
-    if ($null -eq $task)
-    {
-        return $nullReturn
-    }
-    else
-    {
-        $NotesValue = $task.Notes
-
-        #region Task Assignment
-        if ($task.Assignments.Length -gt 0)
+        try
         {
-            $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
-        -InboundParameters $PSBoundParameters
-            $assignedValues = @()
-            foreach ($assignee in $task.Assignments)
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
             {
-                $user = Get-AzureADUser -ObjectId $assignee
-                $assignedValues += $user.UserPrincipalName
+                $tenantIdValue = $TenantId
             }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
         }
-        #endregion
-
-        #region Task Categories
-        $categoryValues = @()
-        foreach ($category in $task.Categories)
+        catch
         {
-            $categoryValues += $category
+            Write-Verbose -Message $_
         }
-        #endregion
-
-        $StartDateTimeValue = $null
-        if ($null -ne $task.StartDateTime)
-        {
-            $StartDateTimeValue = $task.StartDateTime
-        }
-        $DueDateTimeValue = $null
-        if ($null -ne $task.DueDateTime)
-        {
-            $DueDateTimeValue = $task.DueDateTime
-        }
-        $results = @{
-            PlanId                = $PlanId
-            PlanName              = $PlanName
-            PlanOwnerGroupName    = $PlanOwnerGroupName
-            Title                 = $Title
-            AssignedUsers         = $assignedValues
-            TaskId                = $task.TaskId
-            Categories            = $categoryValues
-            Attachments           = $task.Attachments
-            Checklist             = $task.Checklist
-            Bucket                = $task.BucketId
-            Priority              = $task.Priority
-            ConversationThreadId  = $task.ConversationThreadId
-            PercentComplete       = $task.PercentComplete
-            StartDateTime         = $StartDateTimeValue
-            DueDateTime           = $DueDateTimeValue
-            Notes                 = $NotesValue
-            Ensure                = "Present"
-            ApplicationId         = $ApplicationId
-            GlobalAdminAccount    = $GlobalAdminAccount
-        }
-        Write-Verbose -Message "Get-TargetResource Result: `n $(Convert-M365DscHashtableToString -Hashtable $results)"
-        return $results
+        return $nullReturn
     }
 }
 
@@ -344,7 +366,7 @@ function Set-TargetResource
                 Alias = $attachment.Alias
                 Type  = $attachment.Type
             }
-            $attachmentsArray +=$AttachmentsValue
+            $attachmentsArray += $AttachmentsValue
         }
         $task.Attachments = $attachmentsArray
     }
@@ -372,7 +394,7 @@ function Set-TargetResource
                 Title     = $checkListItem.Title
                 Completed = $checkListItem.Completed
             }
-            $checklistArray +=$checklistItemValue
+            $checklistArray += $checklistItemValue
         }
         $task.Checklist = $checklistArray
     }
@@ -476,6 +498,15 @@ function Test-TargetResource
         [System.String]
         $ApplicationId
     )
+    #region Telemetry
+    $ResourceName = $MyInvocation.MyCommand.ModuleName.Replace("MSFT_", "")
+    $data = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
+    $data.Add("Resource", $ResourceName)
+    $data.Add("Method", $MyInvocation.MyCommand)
+    $data.Add("Principal", $GlobalAdminAccount.UserName)
+    $data.Add("TenantId", $TenantId)
+    Add-M365DSCTelemetryEvent -Data $data
+    #endregion
 
     Write-Verbose -Message "Testing configuration of Planner Task {$Title}"
 
@@ -502,7 +533,7 @@ function Test-TargetResource
         {
             return $false
         }
-        $TestResult = Test-Microsoft365DSCParameterState -CurrentValues $CurrentValues `
+        $TestResult = Test-M365DSCParameterState -CurrentValues $CurrentValues `
             -Source $($MyInvocation.MyCommand.Source) `
             -DesiredValues $PSBoundParameters `
             -ValuesToCheck $ValuesToCheck.Keys
@@ -537,97 +568,143 @@ function Export-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
-        -InboundParameters $PSBoundParameters
-
-    [array]$groups = Get-AzureADGroup -All:$true
-
-    $embeddedResourceProps = @(
-        @{
-            PropertyName ="Attachments"
-            ResourceName = "MSFT_PlannerTaskAttachment"
-        },
-        @{
-            PropertyName ="Checklist"
-            ResourceName = "MSFT_PlannerTaskChecklistItem"
-        }
-    )
-    $i = 1
-    $dscContent = ''
-    foreach ($group in $groups)
+    try
     {
-        Write-Host "    |---[$i/$($groups.Length)] $($group.DisplayName) - {$($group.ObjectID)}"
-        try
+        $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
+            -InboundParameters $PSBoundParameters
+
+        [array]$groups = Get-AzureADGroup -All:$true
+
+        $embeddedResourceProps = @(
+            @{
+                PropertyName ="Attachments"
+                ResourceName = "MSFT_PlannerTaskAttachment"
+            },
+            @{
+                PropertyName ="Checklist"
+                ResourceName = "MSFT_PlannerTaskChecklistItem"
+            }
+        )
+        $i = 1
+        $dscContent = ''
+        foreach ($group in $groups)
         {
-            [Array]$plans = Get-M365DSCPlannerPlansFromGroup -GroupId $group.ObjectId `
-                                -GlobalAdminAccount $GlobalAdminAccount `
-                                -ApplicationId $ApplicationId
-
-            $j = 1
-            foreach ($plan in $plans)
+            Write-Host "    |---[$i/$($groups.Length)] $($group.DisplayName) - {$($group.ObjectID)}"
+            try
             {
-                Write-Host "        |---[$j/$($plans.Length)] $($plan.Title)"
-
-                [Array]$tasks = Get-M365DSCPlannerTasksFromPlan -PlanId $plan.Id `
+                [Array]$plans = Get-M365DSCPlannerPlansFromGroup -GroupId $group.ObjectId `
                                     -GlobalAdminAccount $GlobalAdminAccount `
                                     -ApplicationId $ApplicationId
-                $k = 1
-                foreach ($task in $tasks)
+
+                $j = 1
+                foreach ($plan in $plans)
                 {
-                    Write-Host "            [$k/$($tasks.Length)] $($task.Title)" -NoNewline
-                    $params = @{
-                        TaskId                = $task.Id
-                        PlanId                = $plan.Id
-                        Title                 = $task.Title
-                        PlanName              = $plan.Title
-                        PlanOwnerGroupName    = $group.DisplayName
-                        ApplicationId         = $ApplicationId
-                        GlobalAdminAccount    = $GlobalAdminAccount
-                    }
+                    Write-Host "        |---[$j/$($plans.Length)] $($plan.Title)"
 
-                    $result = Get-TargetResource @params
-
-                    if ([System.String]::IsNullOrEmpty($result.ApplicationId))
+                    [Array]$tasks = Get-M365DSCPlannerTasksFromPlan -PlanId $plan.Id `
+                                        -GlobalAdminAccount $GlobalAdminAccount `
+                                        -ApplicationId $ApplicationId
+                    $k = 1
+                    foreach ($task in $tasks)
                     {
-                        $result.Remove("ApplicationId") | Out-Null
-                    }
-                    if ($result.AssignedUsers.Count -eq 0)
-                    {
-                        $result.Remove("AssignedUsers") | Out-Null
-                    }
+                        Write-Host "            [$k/$($tasks.Length)] $($task.Title)" -NoNewline
+                        $params = @{
+                            TaskId                = $task.Id
+                            PlanId                = $plan.Id
+                            Title                 = $task.Title
+                            PlanName              = $plan.Title
+                            PlanOwnerGroupName    = $group.DisplayName
+                            ApplicationId         = $ApplicationId
+                            GlobalAdminAccount    = $GlobalAdminAccount
+                        }
 
-                    if ($result.Attachments.Length -eq 0)
-                    {
-                        $result.Remove("Attachments") | Out-Null
+                        $result = Get-TargetResource @params
+
+                        if ([System.String]::IsNullOrEmpty($result.ApplicationId))
+                        {
+                            $result.Remove("ApplicationId") | Out-Null
+                        }
+                        if ($result.AssignedUsers.Count -eq 0)
+                        {
+                            $result.Remove("AssignedUsers") | Out-Null
+                        }
+
+                        if ($result.Attachments.Length -eq 0)
+                        {
+                            $result.Remove("Attachments") | Out-Null
+                        }
+
+                        if ($result.Checklist.Length -eq 0)
+                        {
+                            $result.Remove("Checklist") | Out-Null
+                        }
+
+                        $result = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
+                        -Results $result
+                        $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
+                            -ConnectionMode $ConnectionMode `
+                            -ModulePath $PSScriptRoot `
+                            -Results $result `
+                            -GlobalAdminAccount $GlobalAdminAccount `
+                            -PropertiesWithEmbeddedResources $embeddedResourceProps
+
+                        $k++
+                        Write-Host $Global:M365DSCEmojiGreenCheckmark
                     }
-
-                    if ($result.Checklist.Length -eq 0)
-                    {
-                        $result.Remove("Checklist") | Out-Null
-                    }
-
-                    $result = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
-                    -Results $result
-                    $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
-                        -ConnectionMode $ConnectionMode `
-                        -ModulePath $PSScriptRoot `
-                        -Results $result `
-                        -GlobalAdminAccount $GlobalAdminAccount `
-                        -PropertiesWithEmbeddedResources $embeddedResourceProps
-
-                    $k++
-                    Write-Host $Global:M365DSCEmojiGreenCheckmark
+                    $j++
                 }
-                $j++
             }
+            catch
+            {
+                    try
+                    {
+                        Write-Verbose -Message $_
+                        $tenantIdValue = ""
+                        if (-not [System.String]::IsNullOrEmpty($TenantId))
+                        {
+                            $tenantIdValue = $TenantId
+                        }
+                        elseif ($null -ne $GlobalAdminAccount)
+                        {
+                            $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+                        }
+                        Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                            -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                            -TenantId $tenantIdValue
+                    }
+                    catch
+                    {
+                Write-Verbose -Message $_
+            }
+                }
+            $i++
+        }
+        return $dscContent
+    }
+    catch
+    {
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
         }
         catch
         {
             Write-Verbose -Message $_
         }
-        $i++
+        return ""
     }
-    return $dscContent
 }
 
 function Test-M365DSCPlannerTaskCheckListValues
@@ -648,7 +725,7 @@ function Test-M365DSCPlannerTaskCheckListValues
     # the DesiredValues;
     foreach ($checklistItem in $CurrentValues)
     {
-        $equivalentItemInDesired = $DesiredValues | Where-Object -FilterScript {$_.Title -eq $checklistItem.Title}
+        $equivalentItemInDesired = $DesiredValues | Where-Object -FilterScript { $_.Title -eq $checklistItem.Title }
         if ($null -eq $equivalentItemInDesired -or `
             $checklistItem.Completed -ne $equivalentItemInDesired.Completed)
         {
@@ -660,7 +737,7 @@ function Test-M365DSCPlannerTaskCheckListValues
     # the CurrentValues;
     foreach ($checklistItem in $DesiredValues)
     {
-        $equivalentItemInCurrent = $CurrentValues | Where-Object -FilterScript {$_.Title -eq $checklistItem.Title}
+        $equivalentItemInCurrent = $CurrentValues | Where-Object -FilterScript { $_.Title -eq $checklistItem.Title }
         if ($null -eq $equivalentItemInCurrent -or `
             $checklistItem.Completed -ne $equivalentItemInCurrent.Completed)
         {
