@@ -215,42 +215,42 @@ function Get-TargetResource
         $policy = Get-CsTeamsMeetingPolicy -Identity $Identity `
             -ErrorAction 'SilentlyContinue'
 
-    if ($null -eq $policy)
-    {
-        Write-Verbose -Message "Could not find Teams Meeting Policy ${$Identity}"
+        if ($null -eq $policy)
+        {
+            Write-Verbose -Message "Could not find Teams Meeting Policy ${$Identity}"
             return $nullReturn
-    }
-    Write-Verbose -Message "Found Teams Meeting Policy {$Identity}"
-    return @{
-        Identity                                   = $Identity
-        Description                                = $policy.Description
-        AllowChannelMeetingScheduling              = $policy.AllowChannelMeetingScheduling
-        AllowMeetNow                               = $policy.AllowMeetNow
+        }
+        Write-Verbose -Message "Found Teams Meeting Policy {$Identity}"
+        return @{
+            Identity                                   = $Identity
+            Description                                = $policy.Description
+            AllowChannelMeetingScheduling              = $policy.AllowChannelMeetingScheduling
+            AllowMeetNow                               = $policy.AllowMeetNow
             AllowPrivateMeetNow                        = $policy.AllowPrivateMeetNow
             MeetingChatEnabledType                     = $policy.MeetingChatEnabledType
             LiveCaptionsEnabledType                    = $policy.LiveCaptionsEnabledType
             DesignatedPresenterRoleMode                = $policy.DesignatedPresenterRoleMode
             AllowIPAudio                               = $policy.AllowIPAudio
-        AllowIPVideo                               = $policy.AllowIPVideo
+            AllowIPVideo                               = $policy.AllowIPVideo
             AllowEngagementReport                      = $policy.AllowEngagementReport
             IPAudioMode                                = $policy.IPAudioMode
             IPVideoMode                                = $policy.IPVideoMode
             AllowAnonymousUsersToDialOut               = $policy.AllowAnonymousUsersToDialOut
-        AllowAnonymousUsersToStartMeeting          = $policy.AllowAnonymousUsersToStartMeeting
-        AllowPrivateMeetingScheduling              = $policy.AllowPrivateMeetingScheduling
-        AutoAdmittedUsers                          = $policy.AutoAdmittedUsers
-        AllowCloudRecording                        = $policy.AllowCloudRecording
+            AllowAnonymousUsersToStartMeeting          = $policy.AllowAnonymousUsersToStartMeeting
+            AllowPrivateMeetingScheduling              = $policy.AllowPrivateMeetingScheduling
+            AutoAdmittedUsers                          = $policy.AutoAdmittedUsers
+            AllowCloudRecording                        = $policy.AllowCloudRecording
             AllowRecordingStorageOutsideRegion         = $policy.AllowRecordingStorageOutsideRegion
             RecordingStorageMode                       = $policy.RecordingStorageMode
-        AllowOutlookAddIn                          = $policy.AllowOutlookAddIn
-        AllowPowerPointSharing                     = $policy.AllowPowerPointSharing
-        AllowParticipantGiveRequestControl         = $policy.AllowParticipantGiveRequestControl
-        AllowExternalParticipantGiveRequestControl = $policy.AllowExternalParticipantGiveRequestControl
-        AllowSharedNotes                           = $policy.AllowSharedNotes
-        AllowWhiteboard                            = $policy.AllowWhiteboard
-        AllowTranscription                         = $policy.AllowTranscription
-        MediaBitRateKb                             = $policy.MediaBitRateKb
-        ScreenSharingMode                          = $policy.ScreenSharingMode
+            AllowOutlookAddIn                          = $policy.AllowOutlookAddIn
+            AllowPowerPointSharing                     = $policy.AllowPowerPointSharing
+            AllowParticipantGiveRequestControl         = $policy.AllowParticipantGiveRequestControl
+            AllowExternalParticipantGiveRequestControl = $policy.AllowExternalParticipantGiveRequestControl
+            AllowSharedNotes                           = $policy.AllowSharedNotes
+            AllowWhiteboard                            = $policy.AllowWhiteboard
+            AllowTranscription                         = $policy.AllowTranscription
+            MediaBitRateKb                             = $policy.MediaBitRateKb
+            ScreenSharingMode                          = $policy.ScreenSharingMode
             VideoFiltersMode                           = $policy.VideoFiltersMode
             AllowPSTNUsersToBypassLobby                = $policy.AllowPSTNUsersToBypassLobby
             AllowOrganizersToOverrideLobbySettings     = $policy.AllowOrganizersToOverrideLobbySettings
@@ -262,9 +262,9 @@ function Get-TargetResource
             AllowBreakoutRooms                         = $policy.AllowBreakoutRooms
             TeamsCameraFarEndPTZMode                   = $policy.TeamsCameraFarEndPTZMode
             AllowMeetingReactions                      = $policy.AllowMeetingReactions
-        Ensure                                     = "Present"
-        GlobalAdminAccount                         = $GlobalAdminAccount
-    }
+            Ensure                                     = "Present"
+            GlobalAdminAccount                         = $GlobalAdminAccount
+        }
     }
     catch
     {
@@ -793,28 +793,28 @@ function Export-TargetResource
 
     try
     {
-    $i = 1
+        $i = 1
         [array]$policies = Get-CsTeamsMeetingPolicy -ErrorAction Stop
-    $content = ''
+        $content = ''
         Write-Host "`r`n" -NoNewline
-    foreach ($policy in $policies)
-    {
+        foreach ($policy in $policies)
+        {
             Write-Host "    |---[$i/$($policies.Count)] $($policy.Identity)" -NoNewline
-        $params = @{
-            Identity           = $policy.Identity
-            GlobalAdminAccount = $GlobalAdminAccount
-        }
-        $result = Get-TargetResource @params
-        $result.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
+            $params = @{
+                Identity           = $policy.Identity
+                GlobalAdminAccount = $GlobalAdminAccount
+            }
+            $result = Get-TargetResource @params
+            $result.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
             $content += "        TeamsMeetingPolicy " + (New-Guid).ToString() + "`r`n"
-        $content += "        {`r`n"
-        $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot
-        $content += Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
-        $content += "        }`r`n"
-        Write-Host $Global:M365DSCEmojiGreenCheckmark
-        $i++
-    }
-    return $content
+            $content += "        {`r`n"
+            $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot
+            $content += Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
+            $content += "        }`r`n"
+            Write-Host $Global:M365DSCEmojiGreenCheckmark
+            $i++
+        }
+        return $content
     }
     catch
     {
