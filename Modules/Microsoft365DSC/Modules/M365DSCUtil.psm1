@@ -2327,8 +2327,10 @@ function Get-M365DSCExportContentForResource
     }
 
     # Ensure the string properties are properly formatted;
-    $Results = Format-M365DSCString -Properties $Results `
-        -ResourceName $ResourceName
+
+    # This is the M365DSC fix for special characters. We at SysKit have are own inside our own Get-DSCBlockEx and for the timebeing will stick with it
+    # $Results = Format-M365DSCString -Properties $Results `
+    #     -ResourceName $ResourceName
 
     $content = "        $ResourceName " + (New-Guid).ToString() + "`r`n"
     $content += "        {`r`n"
