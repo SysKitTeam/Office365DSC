@@ -96,30 +96,15 @@ function Start-M365DSCConfigurationExtract
     $organization = ""
     $principal = "" # Principal represents the "NetBios" name of the tenant (e.g. the M365DSC part of M365DSC.onmicrosoft.com)
 
-    if ($AuthMethods -Contains 'Application')
-    {
-        $ConnectionMode = 'ServicePrincipal'
-        $organization = Get-M365DSCTenantDomain -ApplicationId $ApplicationId `
-            -TenantId $TenantId `
-            -CertificateThumbprint $CertificateThumbprint
-    }
-    elseif ($AuthMethods -Contains 'Certificate')
-    {
-        $ConnectionMode = 'ServicePrincipal'
-        $organization = $TenantId
-    }
-    elseif ($AuthMethods -Contains 'Credentials')
-    {
-        $ConnectionMode = 'Credential'
-        if ($null -ne $GlobalAdminAccount -and $GlobalAdminAccount.UserName.Contains("@"))
-        {
-            $organization = $GlobalAdminAccount.UserName.Split("@")[1]
-        }
-    }
+    $ConnectionMode = 'ServicePrincipal'
+    $organization = Get-M365DSCTenantDomain -ApplicationId $ApplicationId `
+        -TenantId $TenantId `
+        -CertificateThumbprint $CertificateThumbprint
     if ($organization.IndexOf(".") -gt 0)
     {
         $principal = $organization.Split(".")[0]
     }
+
     $AzureAutomation = $false
     $version = (Get-Module 'Microsoft365DSC').Version
 
@@ -405,7 +390,7 @@ function Start-M365DSCConfigurationExtract
                 if ($GenerateInfo)
                 {
                     $exportString += "`r`n        # For information on how to use this resource, please refer to:`r`n"
-                $exportString += "        # https://github.com/microsoft/Microsoft365DSC/wiki/$($resource.Name.Split('.')[0].Replace('MSFT_', ''))`r`n"
+                    $exportString += "        # https://github.com/microsoft/Microsoft365DSC/wiki/$($resource.Name.Split('.')[0].Replace('MSFT_', ''))`r`n"
                 }
                 $exportString += Export-TargetResource @parameters
                 $i++
@@ -525,14 +510,17 @@ function Start-M365DSCConfigurationExtract
 
     #region Benchmarks
     $M365DSCExportEndTime = [System.DateTime]::Now
-    $timeTaken = New-Timespan -Start ($M365DSCExportStartTime.ToString()) `
+    $timeTaken = New-TimeSpan -Start ($M365DSCExportStartTime.ToString()) `
         -End ($M365DSCExportEndTime.ToString())
-    Write-Host "$($Global:M365DSCEmojiHourglass) Export took {" -NoNewLine
-    Write-Host "$($timeTaken.TotalSeconds) seconds" -NoNewLine -ForegroundColor Cyan
+    Write-Host "$($Global:M365DSCEmojiHourglass) Export took {" -NoNewline
+    Write-Host "$($timeTaken.TotalSeconds) seconds" -NoNewline -ForegroundColor Cyan
     Write-Host "}"
     #endregion
 
     Write-ExtractionStates -OutputDSCPath $OutputDSCPath -ResourceExtractionStates $resourceExtractionStates -ResourceTimeTotalTaken $resourceTimeTotalTaken
+
+    $outputConfigurationData = $OutputDSCPath + "ConfigurationData.psd1"
+    New-ConfigurationDataDocument -Path $outputConfigurationData
 
     if ($shouldOpenOutputDirectory)
     {
@@ -561,7 +549,7 @@ function Remove-RemoteSessions
             for ($index = 0; $index -lt $existingPSSession.count; $index++)
             {
                 $session = $existingPSSession[$index]
-                Remove-PSSession -session $session
+                Remove-PSSession -Session $session
 
                 # Remove any previous modules loaded because of the current PSSession
                 if ($null -ne $session.PreviousModuleName)
