@@ -367,9 +367,8 @@ function Export-TargetResource
                     Write-Verbose -Message $_
                 }
             }
-
-            return $content
         }
+        return $content
     }
     catch
     {
