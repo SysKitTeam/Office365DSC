@@ -25,7 +25,7 @@ function New-M365DSCLogEntry
     )
 
     try
-    {        
+    {
         Write-Verbose -Message "Logging a new Error"
         Write-Error  -ErrorRecord $Error
 
@@ -103,10 +103,11 @@ function Add-M365DSCEvent
 
     $LogName = 'M365DSC'
 
-
-     # TODO m365dsc-update do we want this?
-     # test if this is even working correctly
-     return
+    # we want to see it somewhere in the UI in Trace, otherwise it swallows all the errors and it looks like a perfect snapshot
+    # best to just write it out as an error
+    Write-Error $Message
+    # TODO m365dsc-update do we want this?
+    return
 
     try
     {
