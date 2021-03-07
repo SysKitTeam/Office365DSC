@@ -4,11 +4,11 @@ class MSFT_IntuneDeviceCompliancePolicyiOs : OMI_BaseResource
     [Key, Description("Display name of the iOS device compliance policy.")] String DisplayName;
     [Write, Description("Description of the iOS device compliance policy.")] String Description;
     [Write, Description("PasscodeBlockSimple of the iOS device compliance policy.")] Boolean PasscodeBlockSimple;
-    [Write, Description("PasscodeExpirationDays of the iOS device compliance policy.")] Uint64 PasscodeExpirationDays;
-    [Write, Description("PasscodeMinimumLength of the iOS device compliance policy.")] Uint64 PasscodeMinimumLength;
-    [Write, Description("PasscodeMinutesOfInactivityBeforeLock of the iOS device compliance policy.")] Uint64 PasscodeMinutesOfInactivityBeforeLock;
-    [Write, Description("PasscodePreviousPasscodeBlockCount of the iOS device compliance policy.")] Uint64 PasscodePreviousPasscodeBlockCount;
-    [Write, Description("PasscodeMinimumCharacterSetCount of the iOS device compliance policy.")] Uint64 PasscodeMinimumCharacterSetCount;
+    [Write, Description("PasscodeExpirationDays of the iOS device compliance policy.")] UInt32 PasscodeExpirationDays;
+    [Write, Description("PasscodeMinimumLength of the iOS device compliance policy.")] UInt32 PasscodeMinimumLength;
+    [Write, Description("PasscodeMinutesOfInactivityBeforeLock of the iOS device compliance policy.")] UInt32 PasscodeMinutesOfInactivityBeforeLock;
+    [Write, Description("PasscodePreviousPasscodeBlockCount of the iOS device compliance policy.")] UInt32 PasscodePreviousPasscodeBlockCount;
+    [Write, Description("PasscodeMinimumCharacterSetCount of the iOS device compliance policy.")] UInt32 PasscodeMinimumCharacterSetCount;
     [Write, Description("PasscodeRequiredType of the iOS device compliance policy.")] String PasscodeRequiredType;
     [Write, Description("PasscodeRequired of the iOS device compliance policy.")] Boolean PasscodeRequired;
     [Write, Description("OsMinimumVersion of the iOS device compliance policy.")] String OsMinimumVersion;
