@@ -76,23 +76,8 @@ function Get-TargetResource
     $ConnectionMode = New-M365DSCConnection -Platform 'PnP' `
                 -InboundParameters $PSBoundParameters
 
-    $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
-                -InboundParameters $PSBoundParameters
-
-    $nullReturn = @{
-        Url                   = $Url
-        Title                 = $null
-        Description           = $null
-        LogoUrl               = $null
-        RequiresJoinApproval  = $null
-        AllowedToJoin         = $null
-        SiteDesignId          = $null
-        Ensure                = "Absent"
-        GlobalAdminAccount    = $GlobalAdminAccount
-        ApplicationId         = $ApplicationId
-        TenantId              = $TenantId
-        CertificateThumbprint = $CertificateThumbprint
-    }
+    $nullReturn = $PSBoundParameters
+    $nullReturn.Ensure = "Absent"
 
     try
     {
@@ -118,6 +103,9 @@ function Get-TargetResource
                 return $nullReturn
             }
 
+            $hubSite = Get-PnPHubSite -Identity $Url
+            $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
+                -InboundParameters $PSBoundParameters
             $principals = @()
             foreach ($permission in $hubSite.Permissions.PrincipalName)
             {
@@ -172,7 +160,26 @@ function Get-TargetResource
     }
     catch
     {
-        Write-Verbose -Message "The specified Site Collection doesn't already exist."
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
         return $nullReturn
     }
 }
@@ -496,6 +503,15 @@ function Test-TargetResource
         [System.Management.Automation.PSCredential]
         $CertificatePassword
     )
+    #region Telemetry
+    $ResourceName = $MyInvocation.MyCommand.ModuleName.Replace("MSFT_", "")
+    $data = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
+    $data.Add("Resource", $ResourceName)
+    $data.Add("Method", $MyInvocation.MyCommand)
+    $data.Add("Principal", $GlobalAdminAccount.UserName)
+    $data.Add("TenantId", $TenantId)
+    Add-M365DSCTelemetryEvent -Data $data
+    #endregion
 
     Write-Verbose -Message "Testing configuration for hub site collection $Url"
 
@@ -504,7 +520,7 @@ function Test-TargetResource
     Write-Verbose -Message "Current Values: $(Convert-M365DscHashtableToString -Hashtable $CurrentValues)"
     Write-Verbose -Message "Target Values: $(Convert-M365DscHashtableToString -Hashtable $PSBoundParameters)"
 
-    $TestResult = Test-Microsoft365DSCParameterState -CurrentValues $CurrentValues `
+    $TestResult = Test-M365DSCParameterState -CurrentValues $CurrentValues `
         -Source $($MyInvocation.MyCommand.Source) `
         -DesiredValues $PSBoundParameters `
         -ValuesToCheck @("Ensure", `
@@ -564,49 +580,102 @@ function Export-TargetResource
     $ConnectionMode = New-M365DSCConnection -Platform 'PnP' `
                 -InboundParameters $PSBoundParameters
 
-    [array]$hubSites = Get-PnPHubSite
-
-    $i = 1
-    Write-Host "`r`n" -NoNewLine
-
-    $dscContent = ''
-    foreach ($hub in $hubSites)
+    try
     {
-        # should not be possible, but weird errors for one customer
-        if([string]::IsNullOrEmpty($hub.SiteUrl))
+        [array]$hubSites = Get-PnPHubSite -ErrorAction Stop
+
+        $i = 1
+            Write-Host "`r`n" -NoNewline
+
+            $principal = "" # Principal represents the "NetBios" name of the tenant (e.g. the M365DSC part of M365DSC.onmicrosoft.com)
+            if ($null -ne $GlobalAdminAccount -and $GlobalAdminAccount.UserName.Contains("@"))
+            {
+                $organization = $GlobalAdminAccount.UserName.Split("@")[1]
+
+                if ($organization.IndexOf(".") -gt 0)
+                {
+                    $principal = $organization.Split(".")[0]
+                }
+            }
+            else
+            {
+                $organization = $TenantId
+                $principal = $organization.Split(".")[0]
+            }
+
+        $dscContent = ''
+        foreach ($hub in $hubSites)
         {
-            continue
+            # should not be possible, but weird errors for one customer
+            if([string]::IsNullOrEmpty($hub.SiteUrl))
+            {
+                continue
+            }
+
+            $Params = @{
+                Url                   = $hub.SiteUrl
+                ApplicationId         = $ApplicationId
+                TenantId              = $TenantId
+                CertificateThumbprint = $CertificateThumbprint
+                GlobalAdminAccount    = $GlobalAdminAccount
+                CertificatePassword   = $CertificatePassword
+                CertificatePath       = $CertificatePath
+            }
+
+            $Results = Get-TargetResource @Params
+            if($Results.Ensure -eq "Absent")
+            {
+                continue
+            }
+
+            Write-Host "    [$i/$($hubSites.Length)] $($hub.SiteUrl)" -NoNewLine
+
+            $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
+                    -Results $Results
+                $partialContent = Get-M365DSCExportContentForResource -ResourceName $ResourceName `
+                    -ConnectionMode $ConnectionMode `
+                    -ModulePath $PSScriptRoot `
+                    -Results $Results `
+                    -GlobalAdminAccount $GlobalAdminAccount
+
+                # Make the Url parameterized
+                if ($partialContent.ToLower().Contains($organization.ToLower()) -or `
+                        $partialContent.ToLower().Contains($principal.ToLower()))
+                {
+                    $partialContent = $partialContent -ireplace [regex]::Escape('https://' + $principal + '.sharepoint.com/'), "https://`$(`$OrganizationName.Split('.')[0]).sharepoint.com/"
+                    $partialContent = $partialContent -ireplace [regex]::Escape("@" + $organization), "@`$(`$OrganizationName)"
+                }
+                $dscContent += $partialContent
+
+            Write-Host $Global:M365DSCEmojiGreenCheckMark
+            $i++
         }
-
-        $Params = @{
-            Url                   = $hub.SiteUrl
-            ApplicationId         = $ApplicationId
-            TenantId              = $TenantId
-            CertificateThumbprint = $CertificateThumbprint
-            GlobalAdminAccount    = $GlobalAdminAccount
-            CertificatePassword   = $CertificatePassword
-            CertificatePath       = $CertificatePath
-        }
-
-        $Results = Get-TargetResource @Params
-        if($Results.Ensure -eq "Absent")
-        {
-            continue
-        }
-
-        Write-Host "    [$i/$($hubSites.Length)] $($hub.SiteUrl)" -NoNewLine
-
-        $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
-                -Results $Results
-        $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
-                -ConnectionMode $ConnectionMode `
-                -ModulePath $PSScriptRoot `
-                -Results $Results `
-                -GlobalAdminAccount $GlobalAdminAccount
-        Write-Host $Global:M365DSCEmojiGreenCheckMark
-        $i++
+        return $dscContent
     }
-    return $dscContent
+    catch
+    {
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
+        return ""
+    }
 }
 
 Export-ModuleMember -Function *-TargetResource

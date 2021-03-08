@@ -97,7 +97,11 @@ function Get-TargetResource
             $ConnectionMode = New-M365DSCConnection -Platform 'SecurityComplianceCenter' `
                 -InboundParameters $PSBoundParameters
         }
+    $nullReturn = $PSBoundParameters
+    $nullReturn.Ensure = 'Absent'
 
+    try
+    {
         if ($null -eq $Case)
         {
             $Search = Get-ComplianceSearch -Identity $Name -ErrorAction SilentlyContinue
@@ -113,9 +117,7 @@ function Get-TargetResource
     if ($null -eq $Search)
     {
         Write-Verbose -Message "SCComplianceSearch $($Name) does not exist."
-        $result = $PSBoundParameters
-        $result.Ensure = 'Absent'
-        return $result
+            return $nullReturn
     }
     else
     {
@@ -154,6 +156,31 @@ function Get-TargetResource
 
         Write-Verbose -Message "Get-TargetResource Result: `n $(Convert-M365DscHashtableToString -Hashtable $result)"
         return $result
+    }
+    }
+    catch
+    {
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
+        return $nullReturn
     }
 }
 
@@ -334,6 +361,15 @@ function Test-TargetResource
         [System.Management.Automation.PSCredential]
         $GlobalAdminAccount
     )
+    #region Telemetry
+    $ResourceName = $MyInvocation.MyCommand.ModuleName.Replace("MSFT_", "")
+    $data = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
+    $data.Add("Resource", $ResourceName)
+    $data.Add("Method", $MyInvocation.MyCommand)
+    $data.Add("Principal", $GlobalAdminAccount.UserName)
+    $data.Add("TenantId", $TenantId)
+    Add-M365DSCTelemetryEvent -Data $data
+    #endregion
 
     Write-Verbose -Message "Testing configuration of SCComplianceSearch for $Name"
 
@@ -343,7 +379,7 @@ function Test-TargetResource
     $ValuesToCheck = $PSBoundParameters
     $ValuesToCheck.Remove('GlobalAdminAccount') | Out-Null
 
-    $TestResult = Test-Microsoft365DSCParameterState -CurrentValues $CurrentValues `
+    $TestResult = Test-M365DSCParameterState -CurrentValues $CurrentValues `
         -Source $($MyInvocation.MyCommand.Source) `
         -DesiredValues $PSBoundParameters `
         -ValuesToCheck $ValuesToCheck.Keys
@@ -375,7 +411,10 @@ function Export-TargetResource
     $ConnectionMode = New-M365DSCConnection -Platform 'SecurityComplianceCenter' `
         -InboundParameters $PSBoundParameters `
         -SkipModuleReload $true
-    $searches = Get-ComplianceSearch
+
+    try
+    {
+        $searches = Get-ComplianceSearch -ErrorAction Stop
 
     Write-Host "    `r`n* Searches not assigned to an eDiscovery Case"
     $i = 1
@@ -383,7 +422,7 @@ function Export-TargetResource
     $partialContent = ""
     foreach ($search in $searches)
     {
-        Write-Host "        |---[$i/$($searches.Name.Count)] $($search.Name)" -NoNewLine
+            Write-Host "        |---[$i/$($searches.Name.Count)] $($search.Name)" -NoNewline
         $params = @{
             Name               = $search.Name
             GlobalAdminAccount = $GlobalAdminAccount
@@ -418,7 +457,7 @@ function Export-TargetResource
                 GlobalAdminAccount = $GlobalAdminAccount
                 RawInputObject     = $search
             }
-            Write-Host "        |---[$i/$($searches.Name.Count)] $($search.Name)" -NoNewLine
+                Write-Host "        |---[$i/$($searches.Name.Count)] $($search.Name)" -NoNewline
             $Results = Get-TargetResource @Params
             $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
                 -Results $Results
@@ -434,6 +473,31 @@ function Export-TargetResource
     }
 
     return $dscContent
+    }
+    catch
+    {
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
+        return ""
+    }
 }
 
 Export-ModuleMember -Function *-TargetResource

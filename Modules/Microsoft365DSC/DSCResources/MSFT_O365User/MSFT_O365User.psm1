@@ -177,15 +177,15 @@ function Get-TargetResource
 
             Write-Verbose -Message "Found User $($UserPrincipalName)"
 
-            $skus = Get-AzureADUserLicenseDetail -ObjectId $UserPrincipalName
+            $skus = Get-AzureADUserLicenseDetail -ObjectId $UserPrincipalName -ErrorAction Stop
             foreach ($sku in $skus)
             {
                 $currentLicenseAssignment += $sku.SkuPartNumber
             }
         }
 
-        $userPasswordPolicyInfo = $user | Select-Object UserprincipalName,@{
-                N="PasswordNeverExpires";E={$_.PasswordPolicies -contains "DisablePasswordExpiration"}
+        $userPasswordPolicyInfo = $user | Select-Object UserprincipalName, @{
+            N = "PasswordNeverExpires"; E = { $_.PasswordPolicies -contains "DisablePasswordExpiration" }
         }
         $passwordNeverExpires = $userPasswordPolicyInfo.PasswordNeverExpires
 
@@ -218,11 +218,28 @@ function Get-TargetResource
     }
     catch
     {
-        $Message = "The specified User {$UserPrincipalName} doesn't already exist."
-        Write-Verbose $Message
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
         return $nullReturn
     }
-    return $nullReturn
 }
 
 function Set-TargetResource
@@ -370,6 +387,13 @@ function Set-TargetResource
         -InboundParameters $PSBoundParameters
 
     $user = Get-TargetResource @PSBoundParameters
+    if ($user.Ensure -eq 'Present' -and $Ensure -eq 'Absent')
+    {
+        Write-Verbose -Message "Removing User {$UserPrincipalName}"
+        Remove-AzureADUser -ObjectId $UserPrincipalName
+    }
+    else
+    {
     $PasswordPolicies = $null
     if ($PasswordNeverExpires)
     {
@@ -455,7 +479,7 @@ function Set-TargetResource
         Write-Verbose -Message "Creating Office 365 User $UserPrincipalName"
         $CreationParams.Add("AccountEnabled", $true)
         $PasswordProfile = New-Object -TypeName Microsoft.Open.AzureAD.Model.PasswordProfile
-        $PasswordProfile.Password ='TempP@ss'
+            $PasswordProfile.Password = 'TempP@ss'
         $CreationParams.Add("PasswordProfile", $PasswordProfile)
         $CreationParams.Add("MailNickName", $UserPrincipalName.Split('@')[0])
         $user = New-AzureADUser @CreationParams
@@ -464,7 +488,7 @@ function Set-TargetResource
         try
         {
             if ($null -ne $licenses -and `
-            ($licenses.AddLicenses.Length -gt 0 -or $licenses.RemoveLicenses.Length -gt 0))
+                    ($licenses.AddLicenses.Length -gt 0))
             {
                 Write-Verbose -Message "Assigning $($licenses.Count) licences to new user"
                 Set-AzureADUserLicense -ObjectId $UserPrincipalName `
@@ -474,10 +498,22 @@ function Set-TargetResource
         }
         catch
         {
-            $Message = "Could not assign license {$($newLicenseAssignment)} to user {$($UserPrincipalName)}"
-            New-M365DSCLogEntry -Error $_ -Message $Message -Source $MyInvocation.MyCommand.ModuleName
+                $Message = "Could not assign license {$($licenses.AddLicenses)} to user {$UserPrincipalName}"
+                $tenantIdValue = ""
+                if (-not [System.String]::IsNullOrEmpty($TenantId))
+                {
+                    $tenantIdValue = $TenantId
+                }
+                elseif ($null -ne $GlobalAdminAccount)
+                {
+                    $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+                }
+                New-M365DSCLogEntry -Error $_ -Message $Message `
+                    -Source $MyInvocation.MyCommand.ModuleName `
+                    -TenantId $tenantIdValue
             throw $Message
         }
+    }
     }
 }
 
@@ -605,6 +641,15 @@ function Test-TargetResource
         [System.Management.Automation.PSCredential]
         $CertificatePassword
     )
+    #region Telemetry
+    $ResourceName = $MyInvocation.MyCommand.ModuleName.Replace("MSFT_", "")
+    $data = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
+    $data.Add("Resource", $ResourceName)
+    $data.Add("Method", $MyInvocation.MyCommand)
+    $data.Add("Principal", $GlobalAdminAccount.UserName)
+    $data.Add("TenantId", $TenantId)
+    Add-M365DSCTelemetryEvent -Data $data
+    #endregion
 
     Write-Verbose -Message "Testing configuration of Office 365 User $UserPrincipalName"
 
@@ -614,7 +659,7 @@ function Test-TargetResource
     Write-Verbose -Message "Current Values: $(Convert-M365DscHashtableToString -Hashtable $CurrentValues)"
     Write-Verbose -Message "Target Values: $(Convert-M365DscHashtableToString -Hashtable $PSBoundParameters)"
 
-    $TestResult = Test-Microsoft365DSCParameterState -CurrentValues $CurrentValues `
+    $TestResult = Test-M365DSCParameterState -CurrentValues $CurrentValues `
         -Source $($MyInvocation.MyCommand.Source) `
         -DesiredValues $PSBoundParameters `
         -ValuesToCheck @("Ensure", `
@@ -687,51 +732,79 @@ function Export-TargetResource
     $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
         -InboundParameters $PSBoundParameters
 
-    $users = Get-AzureADUser -All $true
-    $dscContent = ""
-    $subscribedSkuPartNumbersById = @{}
-    Get-AzureADSubscribedSku | ForEach-Object { $subscribedSkuPartNumbersById[$_.SkuID] = $_.SkuPartNumber }
-
-    $i = 1
-    Write-Host "`r`n" -NoNewLine
-    foreach ($user in $users)
+    try
     {
-        Write-Host "    |---[$i/$($users.Length)] $($user.UserPrincipalName)" -NoNewLine
-        $userUPN = $user.UserPrincipalName
-        if (-not [System.String]::IsNullOrEmpty($userUPN))
-        {
-            $Params = @{
-                UserPrincipalName     = $userUPN
-                GlobalAdminAccount    = $GlobalAdminAccount
-                Password              = $GlobalAdminAccount
-                ApplicationId         = $ApplicationId
-                TenantId              = $TenantId
-                CertificateThumbprint = $CertificateThumbprint
-                CertificatePassword   = $CertificatePassword
-                CertificatePath       = $CertificatePath
-                RawInputObject      = @{
-                    User = $user
-                    SubscribedSkuPartNumbersById = $subscribedSkuPartNumbersById
-                }
-            }
+        $users = Get-AzureADUser -All $true -ErrorAction Stop
+        $dscContent = ""
+        $subscribedSkuPartNumbersById = @{}
+        Get-AzureADSubscribedSku | ForEach-Object { $subscribedSkuPartNumbersById[$_.SkuID] = $_.SkuPartNumber }
 
-            $Results = Get-TargetResource @Params
-            if ($null -ne $Results.UserPrincipalName)
+        $i = 1
+        Write-Host "`r`n" -NoNewline
+        foreach ($user in $users)
+        {
+            Write-Host "    |---[$i/$($users.Length)] $($user.UserPrincipalName)" -NoNewline
+            $userUPN = $user.UserPrincipalName
+            if (-not [System.String]::IsNullOrEmpty($userUPN))
             {
-                $Results.Password = $null
-                $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
-                        -Results $Results
-                $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
+                $Params = @{
+                    UserPrincipalName     = $userUPN
+                    GlobalAdminAccount    = $GlobalAdminAccount
+                    Password              = $GlobalAdminAccount
+                    ApplicationId         = $ApplicationId
+                    TenantId              = $TenantId
+                    CertificateThumbprint = $CertificateThumbprint
+                    CertificatePassword   = $CertificatePassword
+                    CertificatePath       = $CertificatePath
+                    RawInputObject      = @{
+                        User = $user
+                        SubscribedSkuPartNumbersById = $subscribedSkuPartNumbersById
+                    }
+                }
+
+                $Results = Get-TargetResource @Params
+                if ($null -ne $Results.UserPrincipalName)
+                {
+                    $Results.Password = $null
+                    $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
+                            -Results $Results
+                    $currentContent = Get-M365DSCExportContentForResource -ResourceName $ResourceName `
                     -ConnectionMode $ConnectionMode `
                     -ModulePath $PSScriptRoot `
                     -Results $Results `
                     -GlobalAdminAccount $GlobalAdminAccount
+                    $dscContent += $currentContent
+                }
             }
+            Write-Host $Global:M365DSCEmojiGreenCheckMark
+            $i++
         }
-        Write-Host $Global:M365DSCEmojiGreenCheckMark
-        $i++
+        return $dscContent
     }
-    return $dscContent
+    catch
+    {
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
+        return ""
+    }
 }
 
 Export-ModuleMember -Function *-TargetResource

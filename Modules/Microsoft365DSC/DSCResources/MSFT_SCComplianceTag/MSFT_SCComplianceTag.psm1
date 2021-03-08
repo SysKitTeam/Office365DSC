@@ -81,15 +81,17 @@ function Get-TargetResource
         $ConnectionMode = New-M365DSCConnection -Platform 'SecurityComplianceCenter' `
             -InboundParameters $PSBoundParameters
     }
+    $nullReturn = $PSBoundParameters
+    $nullReturn.Ensure = 'Absent'
 
+    try
+    {
     $tagObject = Get-ComplianceTag -Identity $Name -ErrorAction SilentlyContinue
 
     if ($null -eq $tagObject)
     {
         Write-Verbose -Message "ComplianceTag $($Name) does not exist."
-        $result = $PSBoundParameters
-        $result.Ensure = 'Absent'
-        return $result
+            return $nullReturn
     }
     else
     {
@@ -117,6 +119,31 @@ function Get-TargetResource
 
         Write-Verbose -Message "Get-TargetResource Result: `n $(Convert-M365DscHashtableToString -Hashtable $result)"
         return $result
+    }
+    }
+    catch
+    {
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
+        return $nullReturn
     }
 }
 
@@ -206,7 +233,7 @@ function Set-TargetResource
         if ($FilePlanProperty)
         {
             Write-Verbose -Message "Converting FilePlan to JSON"
-            $FilePlanPropertyJSON = ConvertTo-JSON (Get-SCFilePlanPropertyObject $FilePlanProperty)
+            $FilePlanPropertyJSON = ConvertTo-Json (Get-SCFilePlanPropertyObject $FilePlanProperty)
             $CreationParams.FilePlanProperty = $FilePlanPropertyJSON
         }
         Write-Verbose "Creating new Compliance Tag $Name calling the New-ComplianceTag cmdlet."
@@ -258,7 +285,7 @@ function Set-TargetResource
         if ($FilePlanProperty)
         {
             Write-Verbose -Message "Converting FilePlan properties to JSON"
-            $FilePlanPropertyJSON = ConvertTo-JSON (Get-SCFilePlanPropertyObject $FilePlanProperty)
+            $FilePlanPropertyJSON = ConvertTo-Json (Get-SCFilePlanPropertyObject $FilePlanProperty)
             $SetParams["FilePlanProperty"] = $FilePlanPropertyJSON
         }
         Set-ComplianceTag @SetParams -Identity $Name
@@ -331,6 +358,15 @@ function Test-TargetResource
         [System.Management.Automation.PSCredential]
         $GlobalAdminAccount
     )
+    #region Telemetry
+    $ResourceName = $MyInvocation.MyCommand.ModuleName.Replace("MSFT_", "")
+    $data = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
+    $data.Add("Resource", $ResourceName)
+    $data.Add("Method", $MyInvocation.MyCommand)
+    $data.Add("Principal", $GlobalAdminAccount.UserName)
+    $data.Add("TenantId", $TenantId)
+    Add-M365DSCTelemetryEvent -Data $data
+    #endregion
 
     Write-Verbose -Message "Testing configuration of ComplianceTag for $Name"
 
@@ -350,7 +386,7 @@ function Test-TargetResource
         return $false
     }
 
-    $TestResult = Test-Microsoft365DSCParameterState -CurrentValues $CurrentValues `
+    $TestResult = Test-M365DSCParameterState -CurrentValues $CurrentValues `
         -Source $($MyInvocation.MyCommand.Source) `
         -DesiredValues $PSBoundParameters `
         -ValuesToCheck $ValuesToCheck.Keys
@@ -381,7 +417,10 @@ function Export-TargetResource
     $ConnectionMode = New-M365DSCConnection -Platform 'SecurityComplianceCenter' `
         -InboundParameters $PSBoundParameters `
         -SkipModuleReload $true
-    $tags = Get-ComplianceTag
+
+    try
+    {
+        $tags = Get-ComplianceTag -ErrorAction Stop
 
     $totalTags = $tags.Length
     if ($null -eq $totalTags)
@@ -389,11 +428,11 @@ function Export-TargetResource
         $totalTags = 1
     }
     $i = 1
-    Write-Host "`r`n" -NoNewLine
+        Write-Host "`r`n" -NoNewline
     $dscContent = ''
     foreach ($tag in $tags)
     {
-        Write-Host "    |---[$i/$($totalTags)] $($tag.Name)" -NoNewLine
+            Write-Host "    |---[$i/$($totalTags)] $($tag.Name)" -NoNewline
         $Params = @{
             Name                  = $tag.Name
             GlobalAdminAccount    = $GlobalAdminAccount
@@ -418,6 +457,31 @@ function Export-TargetResource
         $i++
     }
     return $dscContent
+    }
+    catch
+    {
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
+        return ""
+    }
 }
 
 function Get-SCFilePlanPropertyObject
@@ -462,7 +526,7 @@ function Get-SCFilePlanProperty
     {
         return $null
     }
-    $JSONObject = ConvertFrom-JSON $Metadata
+    $JSONObject = ConvertFrom-Json $Metadata
 
     $result = @{}
 

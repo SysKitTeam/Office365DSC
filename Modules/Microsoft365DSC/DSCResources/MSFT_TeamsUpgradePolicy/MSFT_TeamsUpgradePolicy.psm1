@@ -36,40 +36,68 @@ function Get-TargetResource
     $ConnectionMode = New-M365DSCConnection -Platform 'SkypeForBusiness' `
         -InboundParameters $PSBoundParameters
 
-    $policy = $null
-    [array]$users = $null
-    if ($null -ne $RawInputObject)
+    try
     {
-        $policy = $RawInputObject.Policy
-        [array]$users = $RawInputObject.AllUsers | Where-Object -Filter { $_.TeamsUpgradePolicy -eq $Identity }
+        $policy = $null
+        [array]$users = $null
+        if ($null -ne $RawInputObject)
+        {
+            $policy = $RawInputObject.Policy
+            [array]$users = $RawInputObject.AllUsers | Where-Object -Filter { $_.TeamsUpgradePolicy -eq $Identity }
 
-    }
-    else
-    {
-        $policy = Get-CsTeamsUpgradePolicy -Identity $Identity -ErrorAction SilentlyContinue
-        [array]$users = $RawInputObject.AllUsers | Where-Object -Filter { $_.TeamsUpgradePolicy -eq $Identity }
-    }
+        }
+        else
+        {
+            $policy = Get-CsTeamsUpgradePolicy -Identity $Identity `
+                -ErrorAction SilentlyContinue
+            [array]$users = Get-CSOnlineUser | Where-Object -Filter { $_.TeamsUpgradePolicy -eq $Identity }
+        }
 
-    if ($null -eq $policy)
-    {
-        throw "No Teams Upgrade Policy with Identity {$Identity} was found"
-    }
+        if ($null -eq $policy)
+        {
+            throw "No Teams Upgrade Policy with Identity {$Identity} was found"
+        }
 
-    [array]$usersList = @()
-    foreach ($user in $users)
-    {
-        $usersList += $user.UserPrincipalName
+        [array]$usersList = @()
+        foreach ($user in $users)
+        {
+            $usersList += $user.UserPrincipalName
+        }
+        Write-Verbose -Message "Found Teams Upgrade Policy with Identity {$Identity}"
+        return @{
+            Identity               = $Identity
+            Users                  = $usersList
+            Description            = $policy.Description
+            Mode                   = $policy.Mode
+            NotifySfbUsers         = $policy.NotifySfbUsers
+            Action                 = $policy.Action
+            MigrateMeetingsToTeams = $MigrateMeetingsToTeams
+            GlobalAdminAccount     = $GlobalAdminAccount
+        }
     }
-    Write-Verbose -Message "Found Teams Upgrade Policy with Identity {$Identity}"
-    return @{
-        Identity               = $Identity
-        Users                  = $usersList
-        Description            = $policy.Description
-        Mode                   = $policy.Mode
-        NotifySfbUsers         = $policy.NotifySfbUsers
-        Action                 = $policy.Action
-        MigrateMeetingsToTeams = $MigrateMeetingsToTeams
-        GlobalAdminAccount     = $GlobalAdminAccount
+    catch
+    {
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
+        throw $_
     }
 }
 
@@ -137,6 +165,15 @@ function Test-TargetResource
         [System.Management.Automation.PSCredential]
         $GlobalAdminAccount
     )
+    #region Telemetry
+    $ResourceName = $MyInvocation.MyCommand.ModuleName.Replace("MSFT_", "")
+    $data = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
+    $data.Add("Resource", $ResourceName)
+    $data.Add("Method", $MyInvocation.MyCommand)
+    $data.Add("Principal", $GlobalAdminAccount.UserName)
+    $data.Add("TenantId", $TenantId)
+    Add-M365DSCTelemetryEvent -Data $data
+    #endregion
     Write-Verbose -Message "Testing configuration of Team Upgrade Policy {$Identity}"
 
     $CurrentValues = Get-TargetResource @PSBoundParameters
@@ -147,7 +184,7 @@ function Test-TargetResource
     $ValuesToCheck = $PSBoundParameters
     $ValuesToCheck.Remove('GlobalAdminAccount') | Out-Null
 
-    $TestResult = Test-Microsoft365DSCParameterState -CurrentValues $CurrentValues `
+    $TestResult = Test-M365DSCParameterState -CurrentValues $CurrentValues `
         -Source $($MyInvocation.MyCommand.Source) `
         -DesiredValues $PSBoundParameters `
         -ValuesToCheck $ValuesToCheck.Keys
@@ -184,38 +221,65 @@ function Export-TargetResource
         $organization = $GlobalAdminAccount.UserName.Split("@")[1]
     }
 
-    [array]$policies = Get-CsTeamsUpgradePolicy
-    [array]$allUsers = Get-CSOnlineUser
-    $i = 1
-    $content = ''
-    Write-Host "`r`n" -NoNewLine
-    foreach ($policy in $policies)
+    try
     {
-        Write-Host "    |---[$i/$($policies.Count)] $($policy.Identity.Replace('Tag:', ''))" -NoNewLine
-        $params = @{
-            Identity           = $policy.Identity.Replace("Tag:", "")
-            GlobalAdminAccount = $GlobalAdminAccount
-            RawInputObject     = @{
-                Policy   = $policy
-                AllUsers = $allUsers
-            }
-        }
-        $result = Get-TargetResource @params
-        $result.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
-        $content += "        TeamsUpgradePolicy " + (New-GUID).ToString() + "`r`n"
-        $content += "        {`r`n"
-        $currentDSCBlock = Get-DSCBlock -Params $result -ModulePath $PSScriptRoot
-        $partialContent = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
-        if ($partialContent.ToLower().IndexOf($organization.ToLower()) -gt 0)
+        [array]$policies = Get-CsTeamsUpgradePolicy -ErrorAction Stop
+        [array]$allUsers = Get-CSOnlineUser -ErrorAction Stop
+        $i = 1
+        $content = ''
+        Write-Host "`r`n" -NoNewline
+        foreach ($policy in $policies)
         {
-            $partialContent = $partialContent -ireplace [regex]::Escape("@" + $organization), "@`$OrganizationName"
+            Write-Host "    |---[$i/$($policies.Count)] $($policy.Identity.Replace('Tag:', ''))" -NoNewline
+            $params = @{
+                Identity           = $policy.Identity.Replace("Tag:", "")
+                GlobalAdminAccount = $GlobalAdminAccount
+                RawInputObject     = @{
+                    Policy   = $policy
+                    AllUsers = $allUsers
+                }
+            }
+            $result = Get-TargetResource @params
+            $result.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
+            $content += "        TeamsUpgradePolicy " + (New-Guid).ToString() + "`r`n"
+            $content += "        {`r`n"
+            $currentDSCBlock = Get-DSCBlock -Params $result -ModulePath $PSScriptRoot
+            $partialContent = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
+            if ($partialContent.ToLower().IndexOf($organization.ToLower()) -gt 0)
+            {
+                $partialContent = $partialContent -ireplace [regex]::Escape("@" + $organization), "@`$OrganizationName"
+            }
+            $content += $partialContent
+            $content += "        }`r`n"
+            $i++
+            Write-Host $Global:M365DSCEmojiGreenCheckMark
         }
-        $content += $partialContent
-        $content += "        }`r`n"
-        $i++
-        Write-Host $Global:M365DSCEmojiGreenCheckMark
+        return $content
     }
-    return $content
+    catch
+    {
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
+        return ""
+    }
 }
 
 Export-ModuleMember -Function *-TargetResource

@@ -57,18 +57,8 @@ function Get-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    $nullReturn = @{
-        Identity              = ""
-        Publish               = $Publish
-        Overwrite             = $Overwrite
-        Ensure                = "Absent"
-        ApplicationId         = $ApplicationId
-        TenantId              = $TenantId
-        CertificatePassword   = $CertificatePassword
-        CertificatePath       = $CertificatePath
-        CertificateThumbprint = $CertificateThumbprint
-        GlobalAdminAccount    = $GlobalAdminAccount
-    }
+    $nullReturn = $PSBoundParameters
+    $nullReturn.Ensure = "Absent"
 
     try
     {
@@ -98,6 +88,26 @@ function Get-TargetResource
     catch
     {
         Write-Verbose -Message "The specified app doesn't already exist."
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
         return $nullReturn
     }
 }
@@ -181,7 +191,7 @@ function Set-TargetResource
     elseif ($Ensure -eq "Absent" -and $currentApp.Ensure -eq "Present")
     {
         Write-Verbose -Message "Removing app instance $Identity"
-        Remove-PnpApp -Identity $Identity
+        Remove-PnPApp -Identity $Identity
     }
 }
 
@@ -236,6 +246,15 @@ function Test-TargetResource
         [System.String]
         $CertificateThumbprint
     )
+    #region Telemetry
+    $ResourceName = $MyInvocation.MyCommand.ModuleName.Replace("MSFT_", "")
+    $data = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
+    $data.Add("Resource", $ResourceName)
+    $data.Add("Method", $MyInvocation.MyCommand)
+    $data.Add("Principal", $GlobalAdminAccount.UserName)
+    $data.Add("TenantId", $TenantId)
+    Add-M365DSCTelemetryEvent -Data $data
+    #endregion
 
     Write-Verbose -Message "Testing configuration for app $Identity"
 
@@ -244,7 +263,7 @@ function Test-TargetResource
     Write-Verbose -Message "Current Values: $(Convert-M365DscHashtableToString -Hashtable $CurrentValues)"
     Write-Verbose -Message "Target Values: $(Convert-M365DscHashtableToString -Hashtable $PSBoundParameters)"
 
-    $TestResult = Test-Microsoft365DSCParameterState -CurrentValues $CurrentValues `
+    $TestResult = Test-M365DSCParameterState -CurrentValues $CurrentValues `
         -Source $($MyInvocation.MyCommand.Source) `
         -DesiredValues $PSBoundParameters `
         -ValuesToCheck @("Ensure", `
@@ -299,7 +318,9 @@ function Export-TargetResource
     $ConnectionMode = New-M365DSCConnection -Platform 'PnP' `
                 -InboundParameters $PSBoundParameters
 
-    $tenantAppCatalogUrl = Get-PnPTenantAppCatalogUrl
+    try
+    {
+        $tenantAppCatalogUrl = Get-PnPTenantAppCatalogUrl -ErrorAction Stop
 
     $ConnectionMode = New-M365DSCConnection -Platform 'PnP' `
                 -InboundParameters $PSBoundParameters `
@@ -327,12 +348,12 @@ function Export-TargetResource
             Write-Host "    |---[$i/$($filesToDownload.Length)] $($file.Name)" -NoNewline
 
             $identity = $file.Name.ToLower().Replace(".app", "").Replace(".sppkg", "")
-            $app = Get-PnpApp -Identity $identity -ErrorAction SilentlyContinue
+                $app = Get-PnPApp -Identity $identity -ErrorAction SilentlyContinue
 
             if ($null -eq $app)
             {
                 $identity = $file.Title
-                $app = Get-PnpApp -Identity $file.Title -ErrorAction SilentlyContinue
+                    $app = Get-PnPApp -Identity $file.Title -ErrorAction SilentlyContinue
             }
             if ($null -ne $app)
             {
@@ -367,9 +388,34 @@ function Export-TargetResource
     }
     else
     {
-        Write-Information "    * App Catalog is not configured on tenant. Cannot extract information about SharePoint apps."
+            Write-Verbose -Message "    * App Catalog is not configured on tenant. Cannot extract information about SharePoint apps."
     }
     return $dscContent
+    }
+    catch
+    {
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
+        return ""
+    }
 }
 
 Export-ModuleMember -Function *-TargetResource

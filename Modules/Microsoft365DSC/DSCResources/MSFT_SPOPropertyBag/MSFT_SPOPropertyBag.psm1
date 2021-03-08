@@ -60,84 +60,105 @@ function Get-TargetResource
     # Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    if($RawInputObject)
+    $nullReturn = $PSBoundParameters
+    $nullReturn.Ensure = "Absent"
+    try
     {
-        [array]$property = $RawInputObject
+        if($RawInputObject)
+        {
+            [array]$property = $RawInputObject
+        }
+        else
+        {
+            try
+            {
+                Write-Verbose -Message "Connecting to PnP from the Get method"
+
+                $ConnectionMode = New-M365DSCConnection -Platform 'PnP' `
+                        -InboundParameters $PSBoundParameters `
+                        -Url $Url
+
+                Write-Verbose -Message "Obtaining all properties from the Get method for url {$Url}"
+                [array]$property = Get-PnPPropertyBag -Key $Key -ErrorAction 'Stop'
+
+                Write-Verbose -Message "Properties obtained correctly"
+            }
+            catch
+            {
+                Write-Verbose "GlobalAdminAccount or service principal specified does not have admin access to site {$Url}"
+                if ($_.Exception -like "*Unable to cast object of type*")
+                {
+                    [array]$property = Get-PnPPropertyBag | Where-Object -FilterScript { $_.Key -ceq $Key }
+                }
+                elseif ($_.Exception -like "*The underlying connection was closed*")
+                {
+                    $ConnectionMode = New-M365DSCConnection -Platform 'PnP' `
+                        -InboundParameters $PSBoundParameters `
+                        -Url $Url
+
+                    Write-Verbose -Message "Obtaining all properties from the Get method for url {$Url}"
+                    [array]$property = Get-PnPPropertyBag -Key $Key -ErrorAction 'SilentlyContinue'
+                }
+                else
+                {
+                    New-M365DSCLogEntry -Error $_ -Message "Couldn't get Property Bag for {$Url}" -Source $MyInvocation.MyCommand.ModuleName
+                    Write-Verbose "GlobalAdminAccount specified does not have admin access to site {$Url}"
+                }
+            }
+        }
+
+        if ($property.Length -ne 1)
+        {
+                [array]$property = Get-PnPPropertyBag | Where-Object -FilterScript { $_.Key -ceq $Key }
+        }
+        if ($property.Length -eq 0)
+        {
+            Write-Verbose -Message "SPOPropertyBag $Key does not exist at {$Url}."
+                return $nullReturn
+        }
+        else
+        {
+            Write-Verbose "Found existing SPOPropertyBag Key $Key at {$Url}"
+            $result = @{
+                Ensure                = 'Present'
+                Url                   = $Url
+                Key                   = $Key
+                Value                 = $property[0].Value
+                GlobalAdminAccount    = $GlobalAdminAccount
+                ApplicationId         = $ApplicationId
+                TenantId              = $TenantId
+                CertificatePassword   = $CertificatePassword
+                CertificatePath       = $CertificatePath
+                CertificateThumbprint = $CertificateThumbprint
+            }
+
+            Write-Verbose -Message "Get-TargetResource Result: `n $(Convert-M365DscHashtableToString -Hashtable $result)"
+            return $result
+        }
     }
-    else
+    catch
     {
         try
         {
-            Write-Verbose -Message "Connecting to PnP from the Get method"
-
-            $ConnectionMode = New-M365DSCConnection -Platform 'PnP' `
-                    -InboundParameters $PSBoundParameters `
-                    -Url $Url
-
-            Write-Verbose -Message "Obtaining all properties from the Get method for url {$Url}"
-            [array]$property = Get-PnpPropertyBag -Key $Key -ErrorAction 'Stop'
-
-            Write-Verbose -Message "Properties obtained correctly"
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
         }
         catch
         {
-            Write-Verbose "GlobalAdminAccount or service principal specified does not have admin access to site {$Url}"
-            if ($_.Exception -like "*Unable to cast object of type*")
-            {
-                [array]$property = Get-PnpPropertyBag | Where-Object -FilterScript { $_.Key -ceq $Key }
-            }
-            elseif ($_.Exception -like "*The underlying connection was closed*")
-            {
-                $ConnectionMode = New-M365DSCConnection -Platform 'PnP' `
-                    -InboundParameters $PSBoundParameters `
-                    -Url $Url
-
-                Write-Verbose -Message "Obtaining all properties from the Get method for url {$Url}"
-                [array]$property = Get-PnpPropertyBag -Key $Key -ErrorAction 'SilentlyContinue'
-            }
-            else
-            {
-                New-M365DSCLogEntry -Error $_ -Message "Couldn't get Property Bag for {$Url}" -Source $MyInvocation.MyCommand.ModuleName
-                Write-Verbose "GlobalAdminAccount specified does not have admin access to site {$Url}"
-            }
+            Write-Verbose -Message $_
         }
-    }
-
-    if ($property.Length -ne 1)
-    {
-        [array]$property = Get-PnpPropertyBag | Where-Object -FilterScript { $_.Key -ceq $Key }
-    }
-    if ($property.Length -eq 0)
-    {
-        Write-Verbose -Message "SPOPropertyBag $Key does not exist at {$Url}."
-        $result = $PSBoundParameters
-        $result.Ensure = 'Absent'
-        $result.ApplicationId = $ApplicationId
-        $result.TenantId = $TenantId
-        $result.CertificatePassword = $CertificatePassword
-        $result.CertificatePath = $CertificatePath
-        $result.CertificateThumbprint = $CertificateThumbprint
-        $result.GlobalAdminAccount = $GlobalAdminAccount
-        return $result
-    }
-    else
-    {
-        Write-Verbose "Found existing SPOPropertyBag Key $Key at {$Url}"
-        $result = @{
-            Ensure                = 'Present'
-            Url                   = $Url
-            Key                   = $Key
-            Value                 = $property[0].Value
-            GlobalAdminAccount    = $GlobalAdminAccount
-            ApplicationId         = $ApplicationId
-            TenantId              = $TenantId
-            CertificatePassword   = $CertificatePassword
-            CertificatePath       = $CertificatePath
-            CertificateThumbprint = $CertificateThumbprint
-        }
-
-        Write-Verbose -Message "Get-TargetResource Result: `n $(Convert-M365DscHashtableToString -Hashtable $result)"
-        return $result
+        return $nullReturn
     }
 }
 
@@ -266,6 +287,15 @@ function Test-TargetResource
         [System.String]
         $CertificateThumbprint
     )
+    #region Telemetry
+    $ResourceName = $MyInvocation.MyCommand.ModuleName.Replace("MSFT_", "")
+    $data = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
+    $data.Add("Resource", $ResourceName)
+    $data.Add("Method", $MyInvocation.MyCommand)
+    $data.Add("Principal", $GlobalAdminAccount.UserName)
+    $data.Add("TenantId", $TenantId)
+    Add-M365DSCTelemetryEvent -Data $data
+    #endregion
 
     Write-Verbose -Message "Testing configuration of SPOPropertyBag for $Key at {$Url}"
 
@@ -280,7 +310,7 @@ function Test-TargetResource
     $ValuesToCheck.Remove("CertificatePassword") | Out-Null
     $ValuesToCheck.Remove("CertificateThumbprint") | Out-Null
 
-    $TestResult = Test-Microsoft365DSCParameterState -CurrentValues $CurrentValues `
+    $TestResult = Test-M365DSCParameterState -CurrentValues $CurrentValues `
         -Source $($MyInvocation.MyCommand.Source) `
         -DesiredValues $PSBoundParameters `
         -ValuesToCheck $ValuesToCheck.Keys
@@ -336,6 +366,8 @@ function Export-TargetResource
     $ConnectionMode = New-M365DSCConnection -Platform 'PnP' `
                 -InboundParameters $PSBoundParameters
 
+    try
+    {
     $result = ""
 
     # Get all Site Collections in tenant;
@@ -466,7 +498,7 @@ function Export-TargetResource
         $i++
     }
 
-    Write-Information "    Broke extraction process down into {$MaxProcesses} jobs of {$($instances[0].Length)} item(s) each"
+        Write-Verbose -Message "    Broke extraction process down into {$MaxProcesses} jobs of {$($instances[0].Length)} item(s) each"
     $totalJobs = $MaxProcesses
     $jobsCompleted = 0
     $status = "Running..."
@@ -479,13 +511,13 @@ function Export-TargetResource
         {
             if ($job.JobStateInfo.State -eq "Complete")
             {
-                $result += Receive-Job -name $job.name
-                Remove-Job -name $job.name | Out-Null
+                    $result += Receive-Job -Name $job.name
+                    Remove-Job -Name $job.name | Out-Null
                 $jobsCompleted++
             }
             elseif ($job.JobStateInfo.State -eq 'Failed')
             {
-                Remove-Job -name $job.name | Out-Null
+                    Remove-Job -Name $job.name | Out-Null
                 Write-Warning "{$($job.name)} failed"
                 break
             }
@@ -522,6 +554,31 @@ function Export-TargetResource
         $result = $result -ireplace [regex]::Escape("@" + $organization), "@`$(`$OrganizationName)"
     }
     return $result
+    }
+    catch
+    {
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
+        return ""
+    }
 }
 
 Export-ModuleMember -Function *-TargetResource

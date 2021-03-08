@@ -23,7 +23,7 @@ function Get-TargetResource
 
         [Parameter()]
         [System.String]
-        [ValidateSet("NotificationOnly","ConferenceMuted","ConferenceUnMuted")]
+        [ValidateSet("NotificationOnly", "ConferenceMuted", "ConferenceUnMuted")]
         $NotificationMode,
 
         [Parameter()]
@@ -50,16 +50,17 @@ function Get-TargetResource
     $ConnectionMode = New-M365DSCConnection -Platform 'SkypeForBusiness' `
         -InboundParameters $PSBoundParameters
 
-    $policy = Get-CsTeamsEmergencyCallingPolicy -Identity $Identity -ErrorAction 'SilentlyContinue'
+    $nullReturn = $PSBoundParameters
+    $nullReturn.Ensure = "Absent"
+    try
+    {
+        $policy = Get-CsTeamsEmergencyCallingPolicy -Identity $Identity `
+            -ErrorAction 'SilentlyContinue'
 
     if ($null -eq $policy)
     {
         Write-Verbose -Message "Could not find Teams Emergency Calling Policy {$Identity}"
-        return @{
-            Identity           = $Identity
-            Ensure             = 'Absent'
-            GlobalAdminAccount = $GlobalAdminAccount
-        }
+            return $nullReturn
     }
     Write-Verbose -Message "Found Teams Emergency Calling Policy {$Identity}"
     $result = @{
@@ -78,6 +79,31 @@ function Get-TargetResource
     }
 
     return $result
+    }
+    catch
+    {
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
+        return $nullReturn
+    }
 }
 
 function Set-TargetResource
@@ -104,7 +130,7 @@ function Set-TargetResource
 
         [Parameter()]
         [System.String]
-        [ValidateSet("NotificationOnly","ConferenceMuted","ConferenceUnMuted")]
+        [ValidateSet("NotificationOnly", "ConferenceMuted", "ConferenceUnMuted")]
         $NotificationMode,
 
         [Parameter()]
@@ -198,7 +224,7 @@ function Test-TargetResource
 
         [Parameter()]
         [System.String]
-        [ValidateSet("NotificationOnly","ConferenceMuted","ConferenceUnMuted")]
+        [ValidateSet("NotificationOnly", "ConferenceMuted", "ConferenceUnMuted")]
         $NotificationMode,
 
         [Parameter()]
@@ -210,6 +236,15 @@ function Test-TargetResource
         [System.Management.Automation.PSCredential]
         $GlobalAdminAccount
     )
+    #region Telemetry
+    $ResourceName = $MyInvocation.MyCommand.ModuleName.Replace("MSFT_", "")
+    $data = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
+    $data.Add("Resource", $ResourceName)
+    $data.Add("Method", $MyInvocation.MyCommand)
+    $data.Add("Principal", $GlobalAdminAccount.UserName)
+    $data.Add("TenantId", $TenantId)
+    Add-M365DSCTelemetryEvent -Data $data
+    #endregion
 
     Write-Verbose -Message "Testing configuration of Team Emergency Calling Policy {$Identity}"
 
@@ -221,7 +256,7 @@ function Test-TargetResource
     $ValuesToCheck = $PSBoundParameters
     $ValuesToCheck.Remove('GlobalAdminAccount') | Out-Null
 
-    $TestResult = Test-Microsoft365DSCParameterState -CurrentValues $CurrentValues `
+    $TestResult = Test-M365DSCParameterState -CurrentValues $CurrentValues `
         -Source $($MyInvocation.MyCommand.Source) `
         -DesiredValues $PSBoundParameters `
         -ValuesToCheck $ValuesToCheck.Keys
@@ -252,7 +287,8 @@ function Export-TargetResource
 
     $ConnectionMode = New-M365DSCConnection -Platform 'SkypeForBusiness' `
         -InboundParameters $PSBoundParameters
-
+    try
+    {
     $organization = ""
     if ($GlobalAdminAccount.UserName.Contains("@"))
     {
@@ -260,19 +296,19 @@ function Export-TargetResource
     }
 
     $i = 1
-    [array]$policies = Get-CsTeamsEmergencyCallingPolicy
+        [array]$policies = Get-CsTeamsEmergencyCallingPolicy -ErrorAction Stop
     $content = ''
-    Write-Host "`r`n" -NoNewLine
+        Write-Host "`r`n" -NoNewline
     foreach ($policy in $policies)
     {
-        Write-Host "    |---[$i/$($policies.Count)] $($policy.Identity)" -NoNewLine
+            Write-Host "    |---[$i/$($policies.Count)] $($policy.Identity)" -NoNewline
         $params = @{
             Identity           = $policy.Identity
             GlobalAdminAccount = $GlobalAdminAccount
         }
         $result = Get-TargetResource @params
         $result.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
-        $content += "        TeamsEmergencyCallingPolicy " + (New-GUID).ToString() + "`r`n"
+            $content += "        TeamsEmergencyCallingPolicy " + (New-Guid).ToString() + "`r`n"
         $content += "        {`r`n"
         $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot
         $partialContent = Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
@@ -286,6 +322,31 @@ function Export-TargetResource
         Write-Host $Global:M365DSCEmojiGreenCheckMark
     }
     return $content
+    }
+    catch
+    {
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
+        return ""
+    }
 }
 
 Export-ModuleMember -Function *-TargetResource

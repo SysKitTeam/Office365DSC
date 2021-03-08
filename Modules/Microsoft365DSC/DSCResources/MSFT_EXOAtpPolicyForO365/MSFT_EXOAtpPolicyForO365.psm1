@@ -27,7 +27,11 @@ function Get-TargetResource
 
         [Parameter()]
         [Boolean]
-        $EnableSafeLinksForClients = $false,
+        $EnableSafeDocs  = $false,
+
+        [Parameter()]
+        [Boolean]
+        $EnableSafeLinksForO365Clients = $true,
 
         [Parameter()]
         [Boolean]
@@ -86,11 +90,11 @@ function Get-TargetResource
             -InboundParameters $PSBoundParameters
     }
 
+    $nullReturn = $PSBoundParameters
+    $nullReturn.Ensure = 'Absent'
     try
     {
-        $nullReturn = $PSBoundParameters
-        $nullReturn.Ensure = 'Absent'
-        $AtpPolicies = Get-AtpPolicyForO365
+        $AtpPolicies = Get-AtpPolicyForO365 -ErrorAction Stop
 
         $AtpPolicyForO365 = $AtpPolicies | Where-Object -FilterScript { $_.Identity -eq $Identity }
         if (-not $AtpPolicyForO365)
@@ -101,14 +105,15 @@ function Get-TargetResource
         else
         {
             $result = @{
-                IsSingleInstance          = "Yes"
-                Identity                  = $AtpPolicyForO365.Identity
-                AllowClickThrough         = $AtpPolicyForO365.AllowClickThrough
-                BlockUrls                 = $AtpPolicyForO365.BlockUrls
-                EnableATPForSPOTeamsODB   = $AtpPolicyForO365.EnableATPForSPOTeamsODB
-                EnableSafeLinksForClients = $AtpPolicyForO365.EnableSafeLinksForClients
-                TrackClicks               = $AtpPolicyForO365.TrackClicks
-                Ensure                    = 'Present'
+                IsSingleInstance                = "Yes"
+                Identity                        = $AtpPolicyForO365.Identity
+                AllowClickThrough               = $AtpPolicyForO365.AllowClickThrough
+                BlockUrls                       = $AtpPolicyForO365.BlockUrls
+                EnableATPForSPOTeamsODB         = $AtpPolicyForO365.EnableATPForSPOTeamsODB
+                EnableSafeDocs                  = $AtpPolicyForO365.EnableSafeDocs
+                EnableSafeLinksForO365Clients   = $AtpPolicyForO365.EnableSafeLinksForO365Clients
+                TrackClicks                     = $AtpPolicyForO365.TrackClicks
+                Ensure                          = 'Present'
             }
 
             Write-Verbose -Message "Found AtpPolicyForO365 $($Identity)"
@@ -118,7 +123,26 @@ function Get-TargetResource
     }
     catch
     {
-        Write-Warning $_.Exception
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
         return $nullReturn
     }
 }
@@ -151,7 +175,11 @@ function Set-TargetResource
 
         [Parameter()]
         [Boolean]
-        $EnableSafeLinksForClients = $false,
+        $EnableSafeDocs  = $false,
+
+        [Parameter()]
+        [Boolean]
+        $EnableSafeLinksForO365Clients = $true,
 
         [Parameter()]
         [Boolean]
@@ -243,7 +271,11 @@ function Test-TargetResource
 
         [Parameter()]
         [Boolean]
-        $EnableSafeLinksForClients = $false,
+        $EnableSafeDocs  = $false,
+
+        [Parameter()]
+        [Boolean]
+        $EnableSafeLinksForO365Clients = $true,
 
         [Parameter()]
         [Boolean]
@@ -278,6 +310,15 @@ function Test-TargetResource
         [System.Management.Automation.PSCredential]
         $CertificatePassword
     )
+    #region Telemetry
+    $ResourceName = $MyInvocation.MyCommand.ModuleName.Replace("MSFT_", "")
+    $data = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
+    $data.Add("Resource", $ResourceName)
+    $data.Add("Method", $MyInvocation.MyCommand)
+    $data.Add("Principal", $GlobalAdminAccount.UserName)
+    $data.Add("TenantId", $TenantId)
+    Add-M365DSCTelemetryEvent -Data $data
+    #endregion
 
     Write-Verbose -Message "Testing configuration of AtpPolicyForO365 for $Identity"
 
@@ -291,7 +332,7 @@ function Test-TargetResource
     $ValuesToCheck.Remove('IsSingleInstance') | Out-Null
     $ValuesToCheck.Remove('Verbose') | Out-Null
 
-    $TestResult = Test-Microsoft365DSCParameterState -CurrentValues $CurrentValues `
+    $TestResult = Test-M365DSCParameterState -CurrentValues $CurrentValues `
         -Source $($MyInvocation.MyCommand.Source) `
         -DesiredValues $PSBoundParameters `
         -ValuesToCheck $ValuesToCheck.Keys
@@ -344,53 +385,80 @@ function Export-TargetResource
         -InboundParameters $PSBoundParameters `
         -SkipModuleReload $true
 
-    if (Confirm-ImportedCmdletIsAvailable -CmdletName Get-AtpPolicyForO365)
+    try
     {
-        [array]$ATPPolicies = Get-AtpPolicyForO365
-        $dscContent = ""
-
-        if ($ATPPolicies.Length -eq 0)
+        if (Confirm-ImportedCmdletIsAvailable -CmdletName Get-AtpPolicyForO365)
         {
-            Write-Host $Global:M365DSCEmojiGreenCheckMark
+            [array]$ATPPolicies = Get-AtpPolicyForO365 -ErrorAction Stop
+            $dscContent = ""
+
+            if ($ATPPolicies.Length -eq 0)
+            {
+                Write-Host $Global:M365DSCEmojiGreenCheckMark
+            }
+            else
+            {
+                Write-Host "`r`n" -NoNewLine
+            }
+            $i = 1
+            foreach ($atpPolicy in $ATPPolicies)
+            {
+                $Params = @{
+                    IsSingleInstance      = 'Yes'
+                    Identity              = $atpPolicy.Identity
+                    GlobalAdminAccount    = $GlobalAdminAccount
+                    ApplicationId         = $ApplicationId
+                    TenantId              = $TenantId
+                    CertificateThumbprint = $CertificateThumbprint
+                    CertificatePassword   = $CertificatePassword
+                    CertificatePath       = $CertificatePath
+                }
+                Write-Host "    |---[$i/$($ATPPolicies.Length)] $($atpPolicy.Identiy)" -NoNewLine
+                $Results = Get-TargetResource @Params
+                if ($Results.Ensure -eq "Present")
+                {
+                    $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
+                        -Results $Results
+                    $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
+                        -ConnectionMode $ConnectionMode `
+                        -ModulePath $PSScriptRoot `
+                        -Results $Results `
+                        -GlobalAdminAccount $GlobalAdminAccount
+                }
+                Write-Host $Global:M365DSCEmojiGreenCheckMark
+                $i++
+            }
         }
         else
         {
-            Write-Host "`r`n" -NoNewLine
+            Write-Host "`r`n    $($Global:M365DSCEmojiYellowCircle) The current tenant is not registered to allow for ATP Policies"
         }
-        $i = 1
-        foreach ($atpPolicy in $ATPPolicies)
-        {
-            $Params = @{
-                IsSingleInstance      = 'Yes'
-                Identity              = $atpPolicy.Identity
-                GlobalAdminAccount    = $GlobalAdminAccount
-                ApplicationId         = $ApplicationId
-                TenantId              = $TenantId
-                CertificateThumbprint = $CertificateThumbprint
-                CertificatePassword   = $CertificatePassword
-                CertificatePath       = $CertificatePath
-            }
-            Write-Host "    |---[$i/$($ATPPolicies.Length)] $($atpPolicy.Identiy)" -NoNewLine
-            $Results = Get-TargetResource @Params
-            if ($Results.Ensure -eq "Present")
-            {
-                $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
-                    -Results $Results
-                $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
-                    -ConnectionMode $ConnectionMode `
-                    -ModulePath $PSScriptRoot `
-                    -Results $Results `
-                    -GlobalAdminAccount $GlobalAdminAccount
-            }
-            Write-Host $Global:M365DSCEmojiGreenCheckMark
-            $i++
-        }
+        return $dscContent
     }
-    else
+    catch
     {
-        Write-Host "`r`n    $($Global:M365DSCEmojiYellowCircle) The current tenant is not registered to allow for ATP Policies"
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
+        return ""
     }
-    return $dscContent
 }
 
 Export-ModuleMember -Function *-TargetResource

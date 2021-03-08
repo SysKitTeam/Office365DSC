@@ -97,6 +97,10 @@ function Get-TargetResource
         $AllowGuestDeleteChannels,
 
         [Parameter()]
+        [System.Boolean]
+        $ShowInTeamsSearchAndSuggestions,
+
+        [Parameter()]
         [ValidateSet("Present", "Absent")]
         [System.String]
         $Ensure = "Present",
@@ -132,35 +136,8 @@ function Get-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    $nullReturn = @{
-        DisplayName                       = $DisplayName
-        GroupId                           = $GroupID
-        Description                       = $Description
-        Owner                             = $Owner
-        MailNickName                      = $MailNickName
-        Visibility                        = $Visibility
-        Ensure                            = "Absent"
-        AllowAddRemoveApps                = $AllowAddRemoveApps
-        AllowGiphy                        = $AllowGiphy
-        GiphyContentRating                = $GiphyContentRating
-        AllowStickersAndMemes             = $AllowStickersAndMemes
-        AllowCustomMemes                  = $AllowCustomMemes
-        AllowUserEditMessages             = $AllowUserEditMessages
-        AllowUserDeleteMessages           = $AllowUserDeleteMessages
-        AllowOwnerDeleteMessages          = $AllowOwnerDeleteMessages
-        AllowCreateUpdateRemoveConnectors = $AllowCreateUpdateRemoveConnectors
-        AllowCreateUpdateRemoveTabs       = $AllowCreateUpdateRemoveTabs
-        AllowCreateUpdateChannels         = $AllowCreateUpdateChannels
-        AllowDeleteChannels               = $AllowDeleteChannels
-        AllowTeamMentions                 = $AllowTeamMentions
-        AllowChannelMentions              = $AllowChannelMentions
-        AllowGuestCreateUpdateChannels    = $AllowGuestCreateUpdateChannels
-        AllowGuestDeleteChannels          = $AllowGuestDeleteChannels
-        GlobalAdminAccount                = $GlobalAdminAccount
-        ApplicationId                     = $ApplicationId
-        TenantId                          = $TenantId
-        CertificateThumbprint             = $CertificateThumbprint
-    }
+    $nullReturn = $PSBoundParameters
+    $nullReturn.Ensure = "Absent"
 
 
     if(!$RawInputObject)
@@ -172,8 +149,6 @@ function Get-TargetResource
 
 
 
-    $CurrentParameters = $PSBoundParameters
-
     try
     {
         if($RawInputObject)
@@ -181,7 +156,7 @@ function Get-TargetResource
             $team = $RawInputObject
         }
         ## will only return 1 instance
-        elseif ($CurrentParameters.ContainsKey("GroupID"))
+        elseif ($PSBoundParameters.ContainsKey("GroupID"))
         {
             Write-Verbose -Message "GroupID was specified"
             $team = Get-Team -GroupId $GroupID
@@ -249,6 +224,7 @@ function Get-TargetResource
             AllowGuestDeleteChannels          = $team.AllowGuestDeleteChannels
             AllowCreateUpdateChannels         = $team.AllowCreateUpdateChannels
             AllowDeleteChannels               = $team.AllowDeleteChannels
+            ShowInTeamsSearchAndSuggestions   = $team.ShowInTeamsSearchAndSuggestions
             Ensure                            = "Present"
         }
 
@@ -266,7 +242,26 @@ function Get-TargetResource
     }
     catch
     {
-        Write-Verbose "Returning empty results due to error: $_"
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
         return $nullReturn
     }
 }
@@ -369,6 +364,10 @@ function Set-TargetResource
         $AllowGuestDeleteChannels,
 
         [Parameter()]
+        [System.Boolean]
+        $ShowInTeamsSearchAndSuggestions,
+
+        [Parameter()]
         [ValidateSet("Present", "Absent")]
         [System.String]
         $Ensure = "Present",
@@ -407,14 +406,14 @@ function Set-TargetResource
     $team = Get-TargetResource @PSBoundParameters
 
     $CurrentParameters = $PSBoundParameters
-    $CurrentParameters.Remove("Ensure")
+    $CurrentParameters.Remove("Ensure") | Out-Null
 
     if ($Ensure -eq "Present" -and ($team.Ensure -eq "Present"))
     {
         ## Can't pass Owner parm into set opertaion
         if ($CurrentParameters.ContainsKey("Owner"))
         {
-            $CurrentParameters.Remove("Owner")
+            $CurrentParameters.Remove("Owner") | Out-Null
         }
         if (-not $CurrentParameters.ContainsKey("GroupID"))
         {
@@ -422,13 +421,13 @@ function Set-TargetResource
         }
         if ($ConnectionMode -eq 'Credential')
         {
-            $CurrentParameters.Remove("GlobalAdminAccount")
+            $CurrentParameters.Remove("GlobalAdminAccount") | Out-Null
         }
         else
         {
-            $CurrentParameters.Remove("ApplicationId")
-            $CurrentParameters.Remove("TenantId")
-            $CurrentParameters.Remove("CertificateThumbprint")
+            $CurrentParameters.Remove("ApplicationId") | Out-Null
+            $CurrentParameters.Remove("TenantId") | Out-Null
+            $CurrentParameters.Remove("CertificateThumbprint") | Out-Null
         }
         Set-Team @CurrentParameters
         Write-Verbose -Message "Updating team $DisplayName"
@@ -438,7 +437,7 @@ function Set-TargetResource
         ## GroupID not used on New-Team cmdlet
         if ($CurrentParameters.ContainsKey("GroupID"))
         {
-            $CurrentParameters.Remove("GroupID")
+            $CurrentParameters.Remove("GroupID") | Out-Null
         }
         Write-Verbose -Message "Creating team $DisplayName"
         if ($null -ne $Owner)
@@ -481,14 +480,14 @@ function Set-TargetResource
         }
         else
         {
-            $CurrentParameters.Remove("GlobalAdminAccount")
+            $CurrentParameters.Remove("GlobalAdminAccount") | Out-Null
             New-Team @CurrentParameters
         }
     }
     elseif ($Ensure -eq "Absent" -and ($team.Ensure -eq "Present"))
     {
         Write-Verbose -Message "Removing team $DisplayName"
-        Remove-team -GroupId $team.GroupId
+        Remove-Team -GroupId $team.GroupId
     }
 }
 
@@ -591,6 +590,10 @@ function Test-TargetResource
         $AllowGuestDeleteChannels,
 
         [Parameter()]
+        [System.Boolean]
+        $ShowInTeamsSearchAndSuggestions,
+
+        [Parameter()]
         [ValidateSet("Present", "Absent")]
         [System.String]
         $Ensure = "Present",
@@ -611,6 +614,15 @@ function Test-TargetResource
         [System.Management.Automation.PSCredential]
         $GlobalAdminAccount
     )
+    #region Telemetry
+    $ResourceName = $MyInvocation.MyCommand.ModuleName.Replace("MSFT_", "")
+    $data = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
+    $data.Add("Resource", $ResourceName)
+    $data.Add("Method", $MyInvocation.MyCommand)
+    $data.Add("Principal", $GlobalAdminAccount.UserName)
+    $data.Add("TenantId", $TenantId)
+    Add-M365DSCTelemetryEvent -Data $data
+    #endregion
 
     Write-Verbose -Message "Testing configuration of Team $DisplayName"
 
@@ -619,8 +631,9 @@ function Test-TargetResource
     Write-Verbose -Message "Current Values: $(Convert-M365DscHashtableToString -Hashtable $CurrentValues)"
     Write-Verbose -Message "Target Values: $(Convert-M365DscHashtableToString -Hashtable $PSBoundParameters)"
 
-    If (!$PSBoundParameters.ContainsKey('Ensure')) {
-        $PSBoundParameters.Add('Ensure',$Ensure)
+    If (!$PSBoundParameters.ContainsKey('Ensure'))
+    {
+        $PSBoundParameters.Add('Ensure', $Ensure)
     }
     $ValuesToCheck = $PSBoundParameters
     $ValuesToCheck.Remove('GlobalAdminAccount') | Out-Null
@@ -631,7 +644,7 @@ function Test-TargetResource
         $ValuesToCheck.Remove("Owner") | Out-Null
     }
 
-    $TestResult = Test-Microsoft365DSCParameterState -CurrentValues $CurrentValues `
+    $TestResult = Test-M365DSCParameterState -CurrentValues $CurrentValues `
         -Source $($MyInvocation.MyCommand.Source) `
         -DesiredValues $PSBoundParameters `
         -ValuesToCheck $ValuesToCheck.Keys
@@ -673,6 +686,8 @@ function Export-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
+    try
+    {
     $ConnectionMode = New-M365DSCConnection -Platform 'MicrosoftTeams' -InboundParameters $PSBoundParameters
     if ($ConnectionMode -eq 'ServicePrincipal')
     {
@@ -686,10 +701,10 @@ function Export-TargetResource
     $teams = Get-AllTeamsCached
     $i = 1
     $content = ""
-    Write-Host "`r`n" -NoNewLine
+        Write-Host "`r`n" -NoNewline
     foreach ($team in $teams)
     {
-        Write-Host "    |---[$i/$($teams.Length)] $($team.DisplayName)" -NoNewLine
+            Write-Host "    |---[$i/$($teams.Length)] $($team.DisplayName)" -NoNewline
         $params = @{
             DisplayName           = $team.DisplayName
             GlobalAdminAccount    = $GlobalAdminAccount
@@ -715,7 +730,7 @@ function Export-TargetResource
         {
             $result.Remove("Owner")
         }
-        $content += "        TeamsTeam " + (New-GUID).ToString() + "`r`n"
+            $content += "        TeamsTeam " + (New-Guid).ToString() + "`r`n"
         $content += "        {`r`n"
         $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot
         if ($ConnectionMode -eq 'Credential')
@@ -737,6 +752,31 @@ function Export-TargetResource
     }
 
     return $content
+    }
+    catch
+    {
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
+        return ""
+    }
 }
 
 Export-ModuleMember -Function *-TargetResource
