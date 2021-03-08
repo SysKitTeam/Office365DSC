@@ -62,7 +62,10 @@ function Get-TargetResource
 
         [Parameter(Mandatory = $true)]
         [System.String]
-        $CertificateThumbprint
+        $CertificateThumbprint,
+
+        [Parameter()]
+        $RawInputObject
     )
     Write-Verbose -Message "Getting configuration of Tab $DisplayName"
 
@@ -84,67 +87,76 @@ function Get-TargetResource
 
     try
     {
-        # Get the Team ID
-        try
+        if ($RawInputObject)
         {
-            if ([System.String]::IsNullOrEmpty($TeamId))
+            $teamInstance = $RawInputObject.TeamId
+            $channelInstance = $RawInputObject.Channel
+            $tabInstance = $RawInputObject.Tab
+        }
+        else
+        {
+            # Get the Team ID
+            try
             {
-                Write-Verbose -Message "Getting team by Name {$TeamName}"
-                [array]$teamInstance = Get-Team | Where-Object -FilterScript { $_.DisplayName -eq $TeamName }
-                if ($teamInstance.Length -gt 1)
+                if ([System.String]::IsNullOrEmpty($TeamId))
                 {
-                    throw "Multiple Teams with name {$TeamName} were found. Please specify TeamId in your configuration instead."
+                    Write-Verbose -Message "Getting team by Name {$TeamName}"
+                    [array]$teamInstance = Get-Team | Where-Object -FilterScript { $_.DisplayName -eq $TeamName }
+                    if ($teamInstance.Length -gt 1)
+                    {
+                        throw "Multiple Teams with name {$TeamName} were found. Please specify TeamId in your configuration instead."
+                    }
+                }
+                else
+                {
+                    Write-Verbose -Message "Getting team by Id {$TeamId}"
+                    $teamInstance = Get-Team -GroupId $TeamId -ErrorAction Stop
                 }
             }
-            else
+            catch
             {
-                Write-Verbose -Message "Getting team by Id {$TeamId}"
-                $teamInstance = Get-Team -GroupId $TeamId -ErrorAction Stop
+                Write-Verbose -Message $_
+                Write-Verbose "The specified Service Principal doesn't have access to read Group information. Permission Required: Group.Read.All & Team.ReadBasic.All"
+                Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                    -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                    -TenantId $TenantId
             }
-        }
-        catch
-        {
-            Write-Verbose -Message $_
-            Write-Verbose "The specified Service Principal doesn't have access to read Group information. Permission Required: Group.Read.All & Team.ReadBasic.All"
-            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
-                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
-                -TenantId $TenantId
-        }
 
-        if ($null -eq $teamInstance)
-        {
-            $Message = "Team {$TeamName} was not found."
-            Add-M365DSCEvent -Message $Message -EntryType 'Error' `
-                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
-                -TenantId $TenantID
-            throw $Message
-        }
+            if ($null -eq $teamInstance)
+            {
+                $Message = "Team {$TeamName} was not found."
+                Add-M365DSCEvent -Message $Message -EntryType 'Error' `
+                    -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                    -TenantId $TenantID
+                throw $Message
+            }
 
-        $nullReturn.TeamId = $teamInstance.GroupId
+            $nullReturn.TeamId = $teamInstance.GroupId
 
-        $ConnectionMode = New-M365DSCConnection -Platform 'MicrosoftGraph' `
-            -InboundParameters $PSBoundParameters
-        # Get the Channel ID
-        Write-Verbose -Message "Getting Channels for Team {$TeamName} with ID {$($teamInstance.GroupId)}"
-        $channelInstance = Get-MgTeamChannel -TeamId $teamInstance.GroupId | Where-Object -FilterScript { $_.DisplayName -eq $ChannelName }
+            $ConnectionMode = New-M365DSCConnection -Platform 'MicrosoftGraph' `
+                -InboundParameters $PSBoundParameters
+            # Get the Channel ID
+            Write-Verbose -Message "Getting Channels for Team {$TeamName} with ID {$($teamInstance.GroupId)}"
+            $channelInstance = Get-MgTeamChannel -TeamId $teamInstance.GroupId | Where-Object -FilterScript { $_.DisplayName -eq $ChannelName }
 
-        if ($null -eq $channelInstance)
-        {
-            Add-M365DSCEvent -Message "Could not find Channels for Team {$($teamInstance.GroupId)}" -EntryType 'Error' `
-                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
-                -TenantId $TenantID
-            throw "Channel {$ChannelName} was not found."
-        }
+            if ($null -eq $channelInstance)
+            {
+                Add-M365DSCEvent -Message "Could not find Channels for Team {$($teamInstance.GroupId)}" -EntryType 'Error' `
+                    -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                    -TenantId $TenantID
+                throw "Channel {$ChannelName} was not found."
+            }
 
-        # Get the Channel Tab
-        Write-Verbose -Message "Getting Tabs for Channel {$ChannelName}"
-        [array]$tabInstance = Get-M365DSCTeamChannelTab -TeamId $teamInstance.GroupId `
-            -ChannelId $channelInstance.Id `
-            -DisplayName $DisplayName
+            # Get the Channel Tab
+            Write-Verbose -Message "Getting Tabs for Channel {$ChannelName}"
+            [array]$tabInstance = Get-M365DSCTeamChannelTab -TeamId $teamInstance.GroupId `
+                -ChannelId $channelInstance.Id `
+                -DisplayName $DisplayName
 
-        if ($tabInstance.Length -gt 1)
-        {
-            throw "More than one instance of a tab with name {$DisplayName} was found."
+            if ($tabInstance.Length -gt 1)
+            {
+                throw "More than one instance of a tab with name {$DisplayName} was found."
+            }
         }
 
         if ($null -eq $tabInstance)
@@ -465,7 +477,7 @@ function Export-TargetResource
         $ConnectionMode = New-M365DSCConnection -Platform 'MicrosoftTeams' `
             -InboundParameters $PSBoundParameters
 
-        [array]$teams = Get-Team
+        [array]$teams = Get-AllTeamsCached
         $i = 1
         $dscContent = ""
         Write-Host "`r`n" -NoNewline
@@ -517,6 +529,11 @@ function Export-TargetResource
                         ApplicationId         = $ApplicationId
                         TenantId              = $TenantId
                         CertificateThumbprint = $CertificateThumbprint
+                        RawInputObject        = @{
+                            Team    = $team
+                            Channel = $channel
+                            Tab     = $tab
+                        }
                     }
                     $Results = Get-TargetResource @params
 
