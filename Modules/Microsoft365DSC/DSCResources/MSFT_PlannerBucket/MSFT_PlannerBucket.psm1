@@ -358,9 +358,12 @@ function Export-TargetResource
                     {
                         $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
                     }
-                    Add-M365DSCEvent -Message $_ -EntryType 'Error' `
-                        -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
-                        -TenantId $tenantIdValue
+                    if (!(Check-ForbiddenOrNotFoundError -Error $_))
+                    {
+                        Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                            -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                            -TenantId $tenantIdValue
+                    }
                 }
                 catch
                 {

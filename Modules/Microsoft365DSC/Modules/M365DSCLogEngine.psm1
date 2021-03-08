@@ -75,6 +75,16 @@ function New-M365DSCLogEntry
     }
 }
 
+function Check-ForbiddenOrNotFoundError
+{
+    param(
+        [Parameter(Mandatory = $true)]
+        $Error
+    )
+
+    return $Error.Exception -and $Error.Exception.Response -and ($Error.Exception.Response.StatusCode -eq 'Forbidden' -or $Error.Exception.Response.StatusCode -eq 'NotFound')
+}
+
 function Add-M365DSCEvent
 {
     [CmdletBinding()]
