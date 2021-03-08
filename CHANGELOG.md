@@ -1,6 +1,349 @@
 # Change log for Microsoft365DSC
 
-## UNRELEASED
+# 1.21.224.1
+
+* DEPENDENCIES
+  * Rolled-back ExchangeOnlineManagement to 2.0.3;
+
+# 1.21.217.1
+
+* SPOSite
+  * Fixed an issue related to new cmdlets in PnP.PowerShell;
+* DEPENDENCIES
+  * Updated ExchangeOnlineManagement to 2.0.4;
+  * Updated PNP.PowerShell to 1.3.0;
+
+# 1.21.203.1
+
+* SPOSiteDesignRights
+  * Fixed an issue that was preventing this resource from
+    being exported;
+* SPOBrowserIdleSignout
+  * Initial Release;
+* TeamsTenantDialPlan
+  * Fixed an issue with the way Voice Normalization Rules were handled;
+* MISC
+  * Fix to the Delta Report Generator to properly handle TeamsPSTNUsage;
+  * Fixed various Export Verbose format issues;
+* DEPENDENCIES
+  * Updated Microsoft.Graph.Authentication to version 1.3.1;
+  * Updated Microsoft.Graph.Planner to version 1.3.1;
+  * Updated Microsoft.Graph.Teams to version 1.3.1;
+  * Updated MSCloudLoginAssistant to version 1.0.48;
+
+# 1.21.127.1
+
+* AADNamedLocation
+  * Initial Release;
+* DEPENDENCIES
+  * Updated PnP.PowerShell to version 1.2.0;
+  * Updated Microsoft.PowerApps.Administration.PowerShell to
+    1.0.208;
+
+# 1.21.120.1
+
+* DEPENDENCIES
+  * Updated MSCloudLoginAssistant to version 1.0.45;
+  * Replaced the SharePointPnPPowerShellOnline dependency by the new
+    PnP.PowerShell core module;
+
+# 1.21.113.1
+
+* AADTenantDetails
+  * Fixes an issue where the Set would fail if Service Principal
+   was used.
+   (Issue [#1002](https://github.com/microsoft/Microsoft365DSC/issues/1002))
+* AADRoleDefinition
+  * Filters out role definitions without any assigned permissions.
+    Fixes Issue #1007;
+* DEPENDENCIES
+  * Updated Microsoft.PowerApps.Administration.PowerShell
+    to 2.0.104;
+
+# 1.20.1223.1
+
+* SPOHubSite
+  * Changed Export logic to make the url parameterized
+  * Updated Get method to prevent throwing an exception
+    when the specified site doesn't exist
+* SPOSite
+  * Updated logic to not process the HubUrl parameter
+    when this is equal to the Url parameter.
+  * Updated export logic to not export the HubUrl
+    parameter when this is equal to the Url parameter.
+  * Fixed issue with incorrectly applying the LocaleId
+* SPOSiteAuditSettings
+  * Changed Export logic to make the url parameterized
+* SPOSiteGroup
+  * Changed Export logic to make the url parameterized
+  * Updated logic to output more explainable troubleshooting
+    messages
+* M365DscReverse
+  * Added the GlobalAccount Parameter to the example
+    that is outputted after using the Export GUI
+
+# 1.20.1216.1
+
+* AADConditionalAccessPolicy
+  * Initial Release;
+* EXOSafeLinksRule
+  * Fixed typo in a try/catch clause;
+* O365User
+  * Added support for removing existing users with
+    Ensure = 'Absent';
+* TeamsChannelTab
+  * Initial Release;
+
+# 1.20.1209.1
+
+* IntuneAppProtectionPolicyiOS
+  * Initial Release;
+* IntuneDeviceCompliancePolicyiOS
+  * Initial Release;
+* IntuneDeviceConfigurationPolicyiOS
+  * Initial Release;
+* IntuneDeviceEnrollmentPlatformRestriction
+  * Initial Release;
+* IntuneDeviceEnrollmentLimitRestriction
+  * Initial Release;
+* TeamsTenantDialPlan
+  * Performance Improvements: retrieve all Voice Normalization
+    Rule at once and then iterated through them instead of
+    retrieving them for every instance.
+* DEPENDENCIES
+  * Upgraded ExchangeOnlineManagement to version 2.0.3;
+  * Upgraded Microsoft.Graph.Authentication to version 1.2.0;
+  * Upgraded Microsoft.Graph.Planner to version 1.2.0;
+  * Upgraded SharePointPnPPowerShellOnline to version
+    3.28.2012.0;
+
+## 1.20.1202.1
+
+* EXOOwaMailboxPolicy
+  * Fixed an issue trying to remove a policy;
+* TeamsMessagingPolicy
+  * Added AllowUserEditMessage property.
+* TeamsMeetingPolicy
+  * Added 'OrganizerOnly' as a support value for property
+    AutoAdmittedUsers.
+  * Temporarly removed the use of AllowAnonymousUsersToDialOut
+    since it is currently disabled on the API side.
+* EXPORT
+  * Fixed an issue where an Export using the -Workloads
+    parameter with a Service Principal did not export
+    any resource;
+* DEPENDENCIES
+  * Upgrade AzureADPreview to version 2.0.2.129;
+
+## 1.20.1125.1
+
+* AADRoleDefinition
+  * Initial Release;
+* O365User
+  * Fixes an issue where only the first O365User instance
+    extracted had the PSCredential Password property set
+    correctly;
+* TeamsMeetingPolicy
+  * Added the AllowBreakoutRooms, TeamsCameraFarEndPTZMode
+    & AllowMeetingReactions parameters;
+* DEPENDENCIES
+  * MSCloudLoginAssistant Updated to 1.0.42;
+  * Microsoft.PowerApps.Administration.PowerShell Updated
+    to 2.0.99;
+* MISC
+  * Moved the check for new version of module into the
+    Export-M365DSCConfiguration function for performance
+    improvements;
+
+## 1.20.1118.1
+
+* EXOMalwareFilterPolicy
+  * Fix an issue when the CustomFromAddress is empty;
+    (Issue #901)
+* EXORemoteDomain
+  * Fixed an issue where only non-null parameters are
+    used in the Set-TargetResource resource;
+    (Issue #898)
+* SCRetentionEventType
+  * Initial Release;
+* SPOSiteScript
+  * BREAKING CHANGE: Title is now the primary key for the
+    resource and Service Principal is now supported for
+    authentication.
+* MODULES
+  * M365DSCStringEncoding
+    New resource to handle encoding issues in exported content;
+    (Issue #904)
+  * M365DSCLogEngine
+    Added Export-M365DiagnosticData function to export diagnostic
+    information to a Zip file.
+
+## 1.20.1111.1
+
+* AADPolicy
+  Initial Release;
+* Fixes an issue with SCRetentionCompliancePolicy where
+  the wrong parameter sets was being passed for creation.
+  (Issue #890)
+
+## 1.20.1104.1
+
+* AADMSGroup
+  * Added parameter IsAssignableToRole Issue #879
+  * Fixed issue on Set Issue #863
+* EXOHostedContentFilterPolicy
+  * Deprecated ZapEnabled property and added PhishZapEnabled
+    and SpamZapEnabled instead.
+* MISC
+  * Added checks for mandatory Authentication parameters before
+    attempting an Export.
+  * Deprecated the Assert-M365DSCTemplate cmdlet;
+  * Added Telemetry for version of PowerShell used;
+  * Added a timeout on new version check from the
+    PowerShell Gallery;
+  * Fixed Unit Test stubs;
+
+## 1.20.1028.1
+
+* EXOOutboundConnector
+  * Fixed issue #821;
+* O365OrgCustomizationSetting
+  * Fixes an issue where the resource was not being exported;
+* O365User
+  * Added additional information in the error log for when
+    we try to set an invalid license
+* ODSettings
+  * Removed AD group guid dependency issue # 862
+* SPOTenantSettings
+  * Parameter RequireAcceptingAccountMatchInvitedAccount
+    is now deprecated (Issue #864)
+* SPOSharingSettings
+  * Fixed issue # 855
+  * Fixed issue # 866 changed domains to array
+  * Fixed issue where trying to set anonymous link types if
+    sharing not properly configured issue #865
+* SPOTheme
+  * Fixed issue where Palette was not being properly extracted as
+    an array of CIMInstances.
+* TeamsTeam
+  * Added support for visibility HiddenMembership
+* MODULES
+  * M365DSCUtil
+    * Fixed an issue where function Test-M365DSCObjectHasProperty was missing
+    (Issue #861)
+  * M365DSCReverse
+    * Fixed an issue where passing in the file name and using the GUI for
+      extraction did not store the file at the specified location (Issue #810)
+    * Fixed and issue where the -GenerateInfo parameter would always generate
+      a link to the same resource.
+    * Added current version module in the Export file.
+* MISC
+  * Added Authentication Type used to the Telemetry Engine.
+* DEPENDENCIES
+  * AzureADPreview Updated to 2.0.2.119
+  * DSCParser Updated to 1.3.0.0
+  * Microsoft.Graph.Authentication Updated to 1.1.0
+  * Microsoft.Graph.Planner Updated to 1.1.0
+  * Microsoft.PowerApps.Administration.PowerShell Updated
+    to 2.0.96;
+
+## 1.20.1021.1
+
+* AADTenantDetails
+  * Fixed issue where IsSingleInstance was not returned from
+    the Get-TargetResource method;
+* MISC
+  * Fix to how Telemetry is retrieving module version;
+  * Added additional error troubleshooting information
+    to telemetry (dependencies version).
+
+## 1.20.1016.1
+
+* Fixed a permissions issue with the
+  Install-M365DSCDevBranch cmdlet (Issue #699 & #826)
+* DEPENDENCIES
+  * MSCloudLoginAssistant Updated to 1.0.41;
+  * SharePointPnPPowerShellOnline Updated to 3.26.2010.0;
+* MISC
+  * Improved Error log to include StackTrace for additional
+    info to help troubleshooting errors.
+
+## 1.20.1014.1
+
+* TeamsVoiceRoute
+  * Initial Release
+
+## 1.20.1007.1
+
+* TeamsCallingPolicy
+  * Added new supported properties;
+* TeamsMeetingPolicy
+  * Added new supported properties;
+* TeamsTeam
+  * Added new supported properties;
+
+## 1.20.930.1
+
+* IntuneAppConfigurationPolicy
+  * Initial Release;
+* DEPENDENCIES
+  * Rolled back ExchangeOnlineManagement to 2.0.1
+  * Microsoft.PowerApps.Administration.PowerShell updated
+    to 2.0.85;
+  * Microsoft.Graph.Authentication updated to 1.0.1;
+  * Microsoft.Graph.Groups.Planner updated to 1.0.1;
+* MISC
+  * Refactored error handling to various EXO resources;
+  * Renamed method Test-Microsoft365DSCParameterState to
+    Test-M365DSCParameterState to align with naming standard;
+  * Fixed issue #777 with export of SCDLPComplianceRule;
+
+## 1.20.923.1
+
+* IntuneDeviceCategory
+  * Initial Release;
+* SPOSite
+  * Fixed an issue where updating a site's properties
+    would throw an error complaining about the object
+    not being in a correct state.
+* DEPENDENCIES
+  * AADPreview Updated to 2.0.2.117;
+  * ExchangeOnlineManagement Updated to 2.0.3;
+  * MSCloudLoginAssistant Updated to 1.0.40;
+  * ReverseDSC Updated to 2.0.0.7;
+* Misc
+  * Removed EncryptionTemplateID from SCSensitivityLabel (Issue #758)
+  * Added AzureAD app support SPOSiteDesign
+  * Added possibility to provide a custom header to Blueprint
+    assessment and delta reports.
+
+## 1.20.916.1
+
+* AADServicePrincipal
+  * Initial Release (Issue #492)
+* EXOAvailabilityAddressSpace
+  * Fixed an issue where if the user didn't have proper permissions
+    the entire Export process would stop;
+* EXOAvailabilityConfig
+  * Fixed an issue where if the user didn't have proper permissions
+    the entire Export process would stop;
+* EXOEmailAddressPolicy
+  * Fixed an issue where if the user didn't have proper permissions
+    the entire Export process would stop;
+* DEPENDENCIES
+  * MicrosoftTeams Updated to 1.1.6;
+  * MSCloudLoginAssistant Updated to 1.0.38;
+  * Updated Microsoft.PowerApps.Administration.PowerShell to 2.0.81;
+* MISC
+  * Fixed issue with warning about unsupported resources in the
+    Export mode based on authentication selected.
+  * Fixes an issue in the Install-M365DSCDevBranch function
+    where if the manifest file had a leading 0 in the version
+    number (e.g. 1.20.0902.1), it would create the folder as
+    a version with the '0' where the Gallery trims it.
+    (Issue #685)
+
+## 1.20.909.1
 
 * EXOApplicationAccessPolicy
   * Added some error handling around the
@@ -9,6 +352,9 @@
 *EXOSharedMailbox
   * Fixed an issue where Aliases were not properly removed
     (Issue #749);
+* TeamsCallingPolicy
+  * Added support for the AllowWebPSTNCalling and Description
+    properties;
 * TeamsChannel
   * Fixed an error in the Export when trying to connect using
     only an Azure AD Application without any credentials
@@ -22,6 +368,10 @@
     100% for the Write-Progress
     (Issue #722);
 * MISC
+  * Fixed an issue where the OD checkbox was always disabled
+    in the GUI;
+  * Changed the logic of the Unselect All button in the GUI
+    so that it doesn't unselect the authentication checkboxes;
   * Fixed an issue where SPOHubSite was left selected in the
     Export GUI even when unselecting the entire SPO Workload
     (Issue #735);
@@ -29,6 +379,12 @@
     after an export, it would fail. It now defaults to the
     current location
     (Issue #698);
+  * Fixed issue SCSensitivityLabel on EncryptionRightsDefinitions parameters
+    format (Issue #758)
+* DEPENDENCIES
+  * MSCloudLoginAssistant Updated to 1.0.34;
+  * Microsoft.PowerApps.Administration.PowerShell Updated to 2.0.77;
+  * SharePointPnPPowerShellOnline Updated to 3.25.2009.1;
 
 ## 1.20.902.1
 

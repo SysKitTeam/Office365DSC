@@ -160,18 +160,8 @@ function Get-TargetResource
     #endregion
 
 
-    $nullReturn = @{
-        Url                   = $Url
-        Title                 = $Title
-        Template              = $Template
-        Ensure                = "Absent"
-        GlobalAdminAccount    = $GlobalAdminAccount
-        ApplicationId         = $ApplicationId
-        TenantId              = $TenantId
-        CertificatePassword   = $CertificatePassword
-        CertificatePath       = $CertificatePath
-        CertificateThumbprint = $CertificateThumbprint
-    }
+    $nullReturn = $PSBoundParameters
+    $nullReturn.Ensure = "Absent"
 
     try
     {
@@ -227,6 +217,42 @@ function Get-TargetResource
             $DenyAddAndCustomizePagesValue = $false
         }
 
+        $siteOwnerEmail = $site.OwnerEmail
+        if ([System.String]::IsNullOrEmpty($siteOwnerEmail))
+        {
+            if ($null -ne $GlobalAdminAccount)
+            {
+                $siteOwnerEmail = $GlobalAdminAccount.UserName
+            }
+            else
+            {
+                try
+                {
+                    New-M365DSCConnection -Platform "AzureAD" `
+                        -InboundParameters $PSBoundParameters | Out-Null
+                    $app = Get-AzureADApplication -Filter "AppId eq '$ApplicationID'"
+                    $owner = (Get-AzureADApplicationOwner -ObjectId $app.ObjectId)
+                    $siteOwnerEmail = $owner.UserPrincipalName
+                }
+                catch
+                {
+                    New-M365DSCLogEntry -Error $_ `
+                        -Message "Could not obtain owner for SPOSite {$Url}" `
+                        -Source $MyInvocation.MyCommand.ModuleName
+                    Write-Verbose -Message "Could not obtain owner for SPOSite {$Url}"
+                }
+            }
+        }
+        if ($site.StorageQuotaWarningLevel -gt 0)
+        {
+            $quotaWarning = $site.StorageQuotaWarningLevel / 100
+        }
+
+        if ($site.StorageMaximumLevel -gt 0)
+        {
+            $quotaMax = $site.StorageMaximumLevel / 100
+        }
+
         return @{
             Url                                         = $Url
             Title                                       = $site.Title
@@ -238,8 +264,8 @@ function Get-TargetResource
             LockState                                   = $site.LockState
             IsHubSite                                   = $site.IsHubSite
             SharingCapability                           = $site.SharingCapability
-            StorageMaximumLevel                         = $site.StorageMaximumLevel
-            StorageWarningLevel                         = $site.StorageWarningLevel
+            StorageMaximumLevel                         = $quotaMax
+            StorageWarningLevel                         = $quotaWarning
             AllowDownloadingNonWebViewableFiles         = $site.AllowDownloadingNonWebViewableFiles
             AllowEditing                                = $site.AllowEditing
             CompatibilityLevel                          = $site.CompatibilityLevel
@@ -278,7 +304,26 @@ function Get-TargetResource
     }
     catch
     {
-        Write-Verbose -Message "The specified Site Collection {$Url} doesn't exist."
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
         return $nullReturn
     }
 }
@@ -444,18 +489,12 @@ function Set-TargetResource
                 -InboundParameters $PSBoundParameters
 
     $CurrentValues = Get-TargetResource @PSBoundParameters
-    $CurrentParameters = $PSBoundParameters
-    $CurrentParameters.Remove("Ensure") | Out-Null
-    $CurrentParameters.Remove("GlobalAdminAccount") | Out-Null
-    $CurrentParameters.Remove("ApplicationId") | Out-Null
-    $CurrentParameters.Remove("TenantId") | Out-Null
-    $CurrentParameters.Remove("CertificatePath") | Out-Null
-    $CurrentParameters.Remove("CertificatePassword") | Out-Null
-    $CurrentParameters.Remove("CertificateThumbprint") | Out-Null
 
     $context = Get-PnPContext
     if ($Ensure -eq 'Present' -and $CurrentValues.Ensure -eq 'Absent')
     {
+        Write-Verbose -Message "Site {$Url} doesn't exist. Creating it."
+
         $CreationParams = @{
             Title    = $Title
             Url      = $Url
@@ -464,8 +503,18 @@ function Set-TargetResource
             Lcid     = $LocaleID
             TimeZone = $TimeZoneID
         }
-        Write-Verbose -Message "Site {$Url} doesn't exist. Creating it."
-        New-PnPTenantSite @CreationParams | Out-Null
+
+        $supportedLanguages = (Get-PnPAvailableLanguage).Lcid
+        if ($supportedLanguages -notcontains $CreationParams.Lcid)
+        {
+            Write-Verbose -Message ("Specified LocaleId {$($CreationParams.Lcid)} " + `
+                    "is not supported. Creating the site collection in English {1033}")
+            $CreationParams.Lcid = 1033
+        }
+
+        try
+        {
+            New-PnPTenantSite @CreationParams -ErrorAction Stop | Out-Null
 
         $site = $null
         $circuitBreaker = 0
@@ -483,7 +532,17 @@ function Set-TargetResource
             }
             $circuitBreaker++
         } while ($site.Status -eq 'Creating' -and $circuitBreaker -lt 20)
+
         Write-Verbose -Message "Site {$url} has been successfully created and is {$($site.Status)}."
+    }
+        catch
+        {
+            $Message = "Creation of the site $($Url) failed: $($_.Exception.Message)"
+            Add-M365DSCEvent -Message $Message -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+            throw $Message
+        }
     }
     elseif ($Ensure -eq "Absent" -and $CurrentValues.Ensure -eq 'Present')
     {
@@ -511,13 +570,26 @@ function Set-TargetResource
         {
             $DisableFlowsValue = 'Disabled'
         }
+        #region Ad-Hoc properties
+        if (-not [System.String]::IsNullOrEmpty($DenyAddAndCustomizePages))
+        {
+            if ($DenyAddAndCustomizePages)
+            {
+                $deny = $True
+            }
+            else
+            {
+                $deny = $False
+            }
+        }
         $UpdateParams = @{
             Url                            = $Url
             DisableFlows                   = $DisableFlowsValue
             SharingCapability              = $SharingCapability
             StorageMaximumLevel            = $StorageMaximumLevel
             StorageWarningLevel            = $StorageWarningLevel
-            AllowSelfServiceUpgrade        = $AllowSelfServiceUpgrade
+            # Cannot be set, throws an error about Object not being in a valid state;
+            #AllowSelfServiceUpgrade        = $AllowSelfServiceUpgrade
             Owners                         = $Owner
             CommentsOnSitePagesDisabled    = $CommentsOnSitePagesDisabled
             DefaultLinkPermission          = $DefaultLinkPermission
@@ -526,67 +598,60 @@ function Set-TargetResource
             DisableCompanyWideSharingLinks = $DisableCompanyWideSharingLinks
             #LCID Cannot be set after a Template has been applied;
             #LocaleId                       = $LocaleId
+            RestrictedToRegion                          = $RestrictedToRegion
+            #SocialBarOnSitePagesDisabled                = $SocialBarOnSitePagesDisabled
+            SharingAllowedDomainList                    = $SharingAllowedDomainList
+            SharingBlockedDomainList                    = $SharingBlockedDomainList
+            SharingDomainRestrictionMode                = $SharingDomainRestrictionMode
+            AnonymousLinkExpirationInDays               = $AnonymousLinkExpirationInDays
+            OverrideTenantAnonymousLinkExpirationPolicy = $OverrideTenantAnonymousLinkExpirationPolicy
+            # DenyAddAndCustomizePages                    = $deny
         }
-
         $UpdateParams = Remove-NullEntriesFromHashtable -Hash $UpdateParams
 
         Set-PnPTenantSite @UpdateParams -ErrorAction Stop
 
-        $site = Get-PnpTenantSite $Url
-        #region Ad-Hoc properties
-        if (-not [System.String]::IsNullOrEmpty($DenyAddAndCustomizePages))
+        $UpdateParams = @{}
+        $UpdateParams = @{
+            SocialBarOnSitePagesDisabled = $SocialBarOnSitePagesDisabled
+            DenyAndAddCustomizePages     = $deny
+        }
+        $UpdateParams = Remove-NullEntriesFromHashtable -Hash $UpdateParams
+
+        if ($UpdateParams)
         {
-            if ($DenyAddAndCustomizePages)
-            {
-                $site.DenyAddAndCustomizePages = 'Enabled'
-            }
-            else
-            {
-                $site.DenyAddAndCustomizePages = 'Disabled'
-            }
+            $ConnectionMode = New-M365DSCConnection -Platform 'PnP' `
+                -InboundParameters $PSBoundParameters `
+                -Url $Url
+            Write-Verbose -Message "Updating props via Set-PNPSite on $($Url)"
+            Set-PnPSite @UpdateParams -ErrorAction Stop
         }
 
-        if (-not [System.String]::IsNullOrEmpty($RestrictedToRegion))
-        {
-            $site.RestrictedToRegion = $RestrictedToRegion
-        }
 
-        if (-not [System.String]::IsNullOrEmpty($SocialBarOnSitePagesDisabled))
-        {
-            $site.SocialBarOnSitePagesDisabled = $SocialBarOnSitePagesDisabled
-        }
+        $site = Get-PnPTenantSite $Url
 
-        if (-not [System.String]::IsNullOrEmpty($SharingAllowedDomainList))
+        if (-not [System.String]::IsNullOrEmpty($LocaleId) -and `
+                $PSBoundParameters.LocaleId -ne $site.Lcid)
         {
-            $site.SharingAllowedDomainList = $SharingAllowedDomainList
-        }
+            Write-Verbose -Message "Updating LocaleId of RootWeb to $($PSBoundParameters.LocaleId)"
+            $ConnectionMode = New-M365DSCConnection -Platform 'PnP' `
+                -InboundParameters $PSBoundParameters `
+                -Url $Url
 
-        if (-not [System.String]::IsNullOrEmpty($SharingBlockedDomainList))
-        {
-            $site.SharingBlockedDomainList = $SharingBlockedDomainList
+            $web = Get-PnPWeb
+            $ctx = Get-PnPContext
+            $ctx.Load($web.RegionalSettings)
+            $ctx.ExecuteQuery()
+            $web.RegionalSettings.LocaleId = $PSBoundParameters.LocaleId
+            $web.Update()
+            $ctx.ExecuteQuery()
         }
-
-        if (-not [System.String]::IsNullOrEmpty($SharingDomainRestrictionMode))
-        {
-            $site.SharingDomainRestrictionMode = $SharingDomainRestrictionMode
-        }
-
-        if (-not [System.String]::IsNullOrEmpty($AnonymousLinkExpirationInDays))
-        {
-            $site.AnonymousLinkExpirationInDays = $AnonymousLinkExpirationInDays
-        }
-
-        if (-not [System.String]::IsNullOrEmpty($OverrideTenantAnonymousLinkExpirationPolicy))
-        {
-            $site.OverrideTenantAnonymousLinkExpirationPolicy = $OverrideTenantAnonymousLinkExpirationPolicy
-        }
-        $site.Update() | Out-Null
-        $context.ExecuteQuery()
-        #endregion
 
         Write-Verbose -Message "Settings Updated"
         if ($PSBoundParameters.ContainsKey("HubUrl"))
         {
+            if ($PSBoundParameters.HubUrl.TrimEnd("/") -ne $PSBoundParameters.Url.TrimEnd("/"))
+            {
             if ([System.String]::IsNullOrEmpty($HubUrl))
             {
                 if ($site.HubSiteId -ne "00000000-0000-0000-0000-000000000000")
@@ -610,6 +675,12 @@ function Set-TargetResource
                     Write-Verbose -Message "Adding Hub Association on {$HubUrl} for site {$Url}"
                     Add-PnPHubSiteAssociation -Site $Url -HubSite $HubUrl
                 }
+            }
+        }
+            else
+            {
+                Write-Verbose -Message ("Ignoring the HubUrl parameter because it is equal to " + `
+                        "the site collection Url")
             }
         }
     }
@@ -761,25 +832,34 @@ function Test-TargetResource
         [System.String]
         $CertificateThumbprint
     )
+    #region Telemetry
+    $ResourceName = $MyInvocation.MyCommand.ModuleName.Replace("MSFT_", "")
+    $data = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
+    $data.Add("Resource", $ResourceName)
+    $data.Add("Method", $MyInvocation.MyCommand)
+    $data.Add("Principal", $GlobalAdminAccount.UserName)
+    $data.Add("TenantId", $TenantId)
+    Add-M365DSCTelemetryEvent -Data $data
+    #endregion
 
     Write-Verbose -Message "Testing configuration for site collection $Url"
     $CurrentValues = Get-TargetResource @PSBoundParameters
 
-    Write-Verbose -Message "Current Values: $(Convert-M365DscHashtableToString -Hashtable $CurrentValues)"
-    Write-Verbose -Message "Target Values: $(Convert-M365DscHashtableToString -Hashtable $PSBoundParameters)"
+    $ValuesToCheck = $PSBoundParameters
+    $ValuesToCheck.Remove('GlobalAdminAccount') | Out-Null
+    $ValuesToCheck.Remove("ApplicationId") | Out-Null
+    $ValuesToCheck.Remove("TenantId") | Out-Null
+    $ValuesToCheck.Remove("CertificatePath") | Out-Null
+    $ValuesToCheck.Remove("CertificatePassword") | Out-Null
+    $ValuesToCheck.Remove("CertificateThumbprint") | Out-Null
 
-    $CurrentValues.Remove("GlobalAdminAccount") | Out-Null
-    $CurrentValues.Remove("ApplicationId") | Out-Null
-    $CurrentValues.Remove("TenantId") | Out-Null
-    $CurrentValues.Remove("CertificatePath") | Out-Null
-    $CurrentValues.Remove("CertificatePassword") | Out-Null
-    $CurrentValues.Remove("CertificateThumbprint") | Out-Null
-
-    $keysToCheck = $CurrentValues.Keys
-    $TestResult = Test-Microsoft365DSCParameterState -CurrentValues $CurrentValues `
+    $TestResult = Test-M365DSCParameterState -CurrentValues $CurrentValues `
         -Source $($MyInvocation.MyCommand.Source) `
         -DesiredValues $PSBoundParameters `
-        -ValuesToCheck $keysToCheck
+        -ValuesToCheck $ValuesToCheck.Keys
+
+    Write-Verbose -Message "Current Values: $(Convert-M365DscHashtableToString -Hashtable $CurrentValues)"
+    Write-Verbose -Message "Target Values: $(Convert-M365DscHashtableToString -Hashtable $PSBoundParameters)"
 
     Write-Verbose -Message "Test-TargetResource returned $TestResult"
 
@@ -829,77 +909,136 @@ function Export-TargetResource
     $ConnectionMode = New-M365DSCConnection -Platform 'PnP' `
                 -InboundParameters $PSBoundParameters
 
-    $sites = Get-PnPTenantSite | Where-Object -FilterScript { $_.Template -ne 'SRCHCEN#0' -and $_.Template -ne 'SPSMSITEHOST#0' }
-    [array]$hubSites = Get-PnPHubSite
-
-    $dscContent = ''
-    $i = 1
-    Write-Host "`r`n" -NoNewLine
-    foreach ($site in $sites)
+    try
     {
-        $site = Get-PnPTenantSite -Url $site.Url -Detailed
-        Write-Host "    [$i/$($sites.Length)] $($site.Url)" -NoNewLine
-        $siteTitle = "Null"
-        if (-not [System.String]::IsNullOrEmpty($site.Title))
+        $sites = Get-PnPTenantSite -ErrorAction Stop | Where-Object -FilterScript { $_.Template -ne 'SRCHCEN#0' -and $_.Template -ne 'SPSMSITEHOST#0' }
+        [array]$hubSites = Get-PnPHubSite
+        $organization = ""
+        $principal = "" # Principal represents the "NetBios" name of the tenant (e.g. the M365DSC part of M365DSC.onmicrosoft.com)
+        if ($null -ne $GlobalAdminAccount -and $GlobalAdminAccount.UserName.Contains("@"))
         {
-            $siteTitle = $site.Title
-        }
+            $organization = $GlobalAdminAccount.UserName.Split("@")[1]
 
-        $Params = @{
-            Url                   = $site.Url
-            Template              = $site.Template
-            Owner                 = $site.Owner
-            Title                 = $siteTitle
-            TimeZoneId            = $site.TimeZoneID
-            ApplicationId         = $ApplicationId
-            TenantId              = $TenantId
-            CertificatePassword   = $CertificatePassword
-            CertificatePath       = $CertificatePath
-            CertificateThumbprint = $CertificateThumbprint
-            GlobalAdminAccount    = $GlobalAdminAccount
-            RawInputObject     =  @{
-                Site = $site
-                HubSites = $hubSites
+            if ($organization.IndexOf(".") -gt 0)
+            {
+                $principal = $organization.Split(".")[0]
             }
         }
+        else
+        {
+            $organization = $TenantId
+            $principal = $organization.Split(".")[0]
+        }
+        $dscContent = ''
+        $i = 1
+        Write-Host "`r`n" -NoNewline
+        foreach ($site in $sites)
+        {
+            $site = Get-PnPTenantSite -Url $site.Url -Detailed
+            Write-Host "    [$i/$($sites.Length)] $($site.Url)" -NoNewLine
+                
+            $siteTitle = "Null"
+            if (-not [System.String]::IsNullOrEmpty($site.Title))
+            {
+                $siteTitle = $site.Title
+            }
 
+            $Params = @{
+                Url                   = $site.Url
+                Template              = $site.Template
+                Owner                 = $site.Owner
+                Title                 = $siteTitle
+                TimeZoneId            = $site.TimeZoneID
+                ApplicationId         = $ApplicationId
+                TenantId              = $TenantId
+                CertificatePassword   = $CertificatePassword
+                CertificatePath       = $CertificatePath
+                CertificateThumbprint = $CertificateThumbprint
+                GlobalAdminAccount    = $GlobalAdminAccount
+                RawInputObject     =  @{
+                    Site = $site
+                    HubSites = $hubSites
+                }
+            }
+
+            try
+            {
+                $Results = Get-TargetResource @Params
+
+                if ([System.String]::IsNullOrEmpty($Results.SharingDomainRestrictionMode))
+                {
+                    $Results.Remove("SharingDomainRestrictionMode") | Out-Null
+                }
+                if ([System.String]::IsNullOrEmpty($Results.RestrictedToRegion))
+                {
+                    $Results.Remove("RestrictedToRegion") | Out-Null
+                }
+                if ([System.String]::IsNullOrEmpty($Results.SharingAllowedDomainList))
+                {
+                    $Results.Remove("SharingAllowedDomainList") | Out-Null
+                }
+                if ([System.String]::IsNullOrEmpty($Results.SharingBlockedDomainList))
+                {
+                    $Results.Remove("SharingBlockedDomainList") | Out-Null
+                }
+                    # Removing the HubUrl parameter if the value is equal to the Url parameter.
+                    # This to prevent issues if the site col has just been created and not yet
+                    # configured as a hubsite.
+                    if ([System.String]::IsNullOrEmpty($Results.HubUrl) -or `
+                        ($Results.Url.TrimEnd("/") -eq $Results.HubUrl.TrimEnd("/")))
+                    {
+                        $Results.Remove("HubUrl") | Out-Null
+                    }
+
+                $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
+                            -Results $Results
+
+                    $partialContent = Get-M365DSCExportContentForResource -ResourceName $ResourceName `
+                            -ConnectionMode $ConnectionMode `
+                            -ModulePath $PSScriptRoot `
+                            -Results $Results `
+                            -GlobalAdminAccount $GlobalAdminAccount
+                    if ($partialContent.ToLower().Contains($organization.ToLower()) -or `
+                            $partialContent.ToLower().Contains($principal.ToLower()))
+                    {
+                        $partialContent = $partialContent -ireplace [regex]::Escape('https://' + $principal + '.sharepoint.com/'), "https://`$(`$OrganizationName.Split('.')[0]).sharepoint.com/"
+                        $partialContent = $partialContent -ireplace [regex]::Escape("@" + $organization), "@`$(`$OrganizationName)"
+                    }
+                    $dscContent += $partialContent
+                Write-Host $Global:M365DSCEmojiGreenCheckMark
+            }
+            catch
+            {
+                Write-Host "$($Global:M365DSCEmojiYellowCircle) $_"
+            }
+            $i++
+        }
+        return $dscContent
+    }
+    catch
+    {
         try
         {
-            $Results = Get-TargetResource @Params
-
-            if ([System.String]::IsNullOrEmpty($Results.SharingDomainRestrictionMode))
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
             {
-                $Results.Remove("SharingDomainRestrictionMode") | Out-Null
+                $tenantIdValue = $TenantId
             }
-            if ([System.String]::IsNullOrEmpty($Results.RestrictedToRegion))
+            elseif ($null -ne $GlobalAdminAccount)
             {
-                $Results.Remove("RestrictedToRegion") | Out-Null
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
             }
-            if ([System.String]::IsNullOrEmpty($Results.SharingAllowedDomainList))
-            {
-                $Results.Remove("SharingAllowedDomainList") | Out-Null
-            }
-            if ([System.String]::IsNullOrEmpty($Results.SharingBlockedDomainList))
-            {
-                $Results.Remove("SharingBlockedDomainList") | Out-Null
-            }
-            $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
-                        -Results $Results
-            $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
-                        -ConnectionMode $ConnectionMode `
-                        -ModulePath $PSScriptRoot `
-                        -Results $Results `
-                        -GlobalAdminAccount $GlobalAdminAccount
-            Write-Host $Global:M365DSCEmojiGreenCheckMark
-
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
         }
         catch
         {
-            Write-Host "$($Global:M365DSCEmojiYellowCircle) $_"
+            Write-Verbose -Message $_
         }
-        $i++
+        return ""
     }
-    return $dscContent
 }
 
 Export-ModuleMember -Function *-TargetResource

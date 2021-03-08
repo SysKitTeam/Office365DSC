@@ -64,28 +64,20 @@ function Get-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    $nullReturn = @{
-        TeamName           = $TeamName
-        TeamMailNickName   = $TeamMailNickName
-        DisplayName        = $DisplayName
-        Description        = $Description
-        NewDisplayName     = $NewDisplayName
-        Ensure             = "Absent"
-        GlobalAdminAccount = $GlobalAdminAccount
-    }
+    $nullReturn = $PSBoundParameters
+    $nullReturn.Ensure = "Absent"
     Write-Verbose -Message "Checking for existance of team channels"
-    $CurrentParameters = $PSBoundParameters
 
     try
     {
-        if($RawInputObject)
+        if ($RawInputObject)
         {
             $team = $RawInputObject.Team
             $channel = $RawInputObject.Channel
         }
         else
         {
-           $ConnectionMode = New-M365DSCConnection -Platform 'MicrosoftTeams' -InboundParameters $PSBoundParameters
+            $ConnectionMode = New-M365DSCConnection -Platform 'MicrosoftTeams' -InboundParameters $PSBoundParameters
 
             $team = Get-TeamByName $TeamName
 
@@ -98,7 +90,7 @@ function Get-TargetResource
             }
 
             #Current channel doesnt exist and trying to rename throw an error
-            if (($null -eq $channel) -and $CurrentParameters.ContainsKey("NewDisplayName"))
+            if (($null -eq $channel) -and $PSBoundParameters.ContainsKey("NewDisplayName"))
             {
                 Write-Verbose -Message "Cannot rename channel $DisplayName , doesnt exist in current Team"
                 throw "Channel named $DisplayName doesn't exist in current Team"
@@ -126,6 +118,26 @@ function Get-TargetResource
     }
     catch
     {
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
         return $nullReturn
     }
 }
@@ -200,13 +212,13 @@ function Set-TargetResource
     }
     Write-Verbose -Message "Retrieve team GroupId: $($team.GroupId)"
 
-    $CurrentParameters.Remove("TeamName")
+    $CurrentParameters.Remove("TeamName") | Out-Null
     $CurrentParameters.Add("GroupId", $team.GroupId)
-    $CurrentParameters.Remove("GlobalAdminAccount")
-    $CurrentParameters.Remove("ApplicationId")
-    $CurrentParameters.Remove("TenantId")
-    $CurrentParameters.Remove("CertificateThumbprint")
-    $CurrentParameters.Remove("Ensure")
+    $CurrentParameters.Remove("GlobalAdminAccount") | Out-Null
+    $CurrentParameters.Remove("ApplicationId") | Out-Null
+    $CurrentParameters.Remove("TenantId") | Out-Null
+    $CurrentParameters.Remove("CertificateThumbprint") | Out-Null
+    $CurrentParameters.Remove("Ensure") | Out-Null
 
     if ($Ensure -eq "Present")
     {
@@ -286,6 +298,15 @@ function Test-TargetResource
         [System.String]
         $CertificateThumbprint
     )
+    #region Telemetry
+    $ResourceName = $MyInvocation.MyCommand.ModuleName.Replace("MSFT_", "")
+    $data = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
+    $data.Add("Resource", $ResourceName)
+    $data.Add("Method", $MyInvocation.MyCommand)
+    $data.Add("Principal", $GlobalAdminAccount.UserName)
+    $data.Add("TenantId", $TenantId)
+    Add-M365DSCTelemetryEvent -Data $data
+    #endregion
 
     Write-Verbose -Message "Testing configuration of Teams channel $DisplayName"
 
@@ -294,7 +315,7 @@ function Test-TargetResource
     Write-Verbose -Message "Current Values: $(Convert-M365DscHashtableToString -Hashtable $CurrentValues)"
     Write-Verbose -Message "Target Values: $(Convert-M365DscHashtableToString -Hashtable $PSBoundParameters)"
 
-    $TestResult = Test-Microsoft365DSCParameterState -CurrentValues $CurrentValues `
+    $TestResult = Test-M365DSCParameterState -CurrentValues $CurrentValues `
         -Source $($MyInvocation.MyCommand.Source) `
         -DesiredValues $PSBoundParameters `
         -ValuesToCheck @("Ensure")
@@ -338,65 +359,92 @@ function Export-TargetResource
 
     $ConnectionMode = New-M365DSCConnection -Platform 'MicrosoftTeams' -InboundParameters $PSBoundParameters
 
-    [array]$teams = Get-AllTeamsCached
-    $j = 1
-    $dscContent = ''
-    Write-Host "`r`n" -NoNewLine
-    foreach ($team in $Teams)
+    try
     {
-        $channels = [System.Collections.ArrayList]:: new()
-        Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
-            $channels.AddRange([array](Get-TeamChannel -GroupId $team.GroupId))
-        }
-        $i = 1
-        Write-Host "    |---[$j/$($Teams.Length)] Team {$($team.DisplayName)}"
-        foreach ($channel in $channels)
+        [array]$teams = Get-AllTeamsCached
+        $j = 1
+        $dscContent = ''
+        Write-Host "`r`n" -NoNewline
+        foreach ($team in $Teams)
         {
-            Write-Host "        |---[$i/$($channels.Count)] $($channel.DisplayName)" -NoNewLine
-
-            if ($ConnectionMode -eq 'Credential')
+            $channels = [System.Collections.ArrayList]:: new()
+            Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
+                $channels.AddRange([array](Get-TeamChannel -GroupId $team.GroupId))
+            }
+            $i = 1
+            Write-Host "    |---[$j/$($Teams.Length)] Team {$($team.DisplayName)}"
+            foreach ($channel in $channels)
             {
-                $params = @{
-                    TeamName           = $team.DisplayName
-                    TeamMailNickName   = $team.MailNickName
-                    DisplayName        = $channel.DisplayName
-                    GlobalAdminAccount = $GlobalAdminAccount
-                    RawInputObject     = @{
-                        Team = $team
-                        Channel = $channel
+                Write-Host "        |---[$i/$($channels.Count)] $($channel.DisplayName)" -NoNewline
+
+                if ($ConnectionMode -eq 'Credential')
+                {
+                    $params = @{
+                        TeamName           = $team.DisplayName
+                        TeamMailNickName   = $team.MailNickName
+                        DisplayName        = $channel.DisplayName
+                        GlobalAdminAccount = $GlobalAdminAccount
+                        RawInputObject     = @{
+                            Team    = $team
+                            Channel = $channel
+                        }
                     }
                 }
-            }
-            else
-            {
-                $params = @{
-                    TeamName              = $team.DisplayName
-                    TeamMailNickName   = $team.MailNickName
-                    DisplayName           = $channel.DisplayName
-                    ApplicationId         = $ApplicationId
-                    TenantId              = $TenantId
-                    CertificateThumbprint = $CertificateThumbprint
-                    RawInputObject     = @{
-                        Team = $team
-                        Channel = $channel
+                else
+                {
+                    $params = @{
+                        TeamName              = $team.DisplayName
+                        TeamMailNickName      = $team.MailNickName
+                        DisplayName           = $channel.DisplayName
+                        ApplicationId         = $ApplicationId
+                        TenantId              = $TenantId
+                        CertificateThumbprint = $CertificateThumbprint
+                        RawInputObject        = @{
+                            Team    = $team
+                            Channel = $channel
+                        }
                     }
                 }
-            }
-            $Results = Get-TargetResource @params
+                $Results = Get-TargetResource @params
 
-            $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
-                -Results $Results
-            $dscContent += Get-M365DSCExportContentForResource -ResourceName "TeamsChannel" `
-                -ConnectionMode $ConnectionMode `
-                -ModulePath $PSScriptRoot `
-                -Results $Results `
-                -GlobalAdminAccount $GlobalAdminAccount
-            $i++
-            Write-Host $Global:M365DSCEmojiGreenCheckMark
+                $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
+                    -Results $Results
+                $dscContent += Get-M365DSCExportContentForResource -ResourceName "TeamsChannel" `
+                    -ConnectionMode $ConnectionMode `
+                    -ModulePath $PSScriptRoot `
+                    -Results $Results `
+                    -GlobalAdminAccount $GlobalAdminAccount
+                $i++
+                Write-Host $Global:M365DSCEmojiGreenCheckMark
+            }
+            $j++
         }
-        $j++
+        return $dscContent
     }
-    return $dscContent
+    catch
+    {
+        try
+        {
+            Write-Verbose -Message $_
+            $tenantIdValue = ""
+            if (-not [System.String]::IsNullOrEmpty($TenantId))
+            {
+                $tenantIdValue = $TenantId
+            }
+            elseif ($null -ne $GlobalAdminAccount)
+            {
+                $tenantIdValue = $GlobalAdminAccount.UserName.Split('@')[1]
+            }
+            Add-M365DSCEvent -Message $_ -EntryType 'Error' `
+                -EventID 1 -Source $($MyInvocation.MyCommand.Source) `
+                -TenantId $tenantIdValue
+        }
+        catch
+        {
+            Write-Verbose -Message $_
+        }
+        return ""
+    }
 }
 
 Export-ModuleMember -Function *-TargetResource

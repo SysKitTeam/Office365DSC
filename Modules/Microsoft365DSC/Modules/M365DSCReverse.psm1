@@ -36,7 +36,7 @@ function Start-M365DSCConfigurationExtract
         $MaxProcesses = 16,
 
         [Parameter()]
-        [ValidateSet('AAD', 'SPO', 'EXO', 'SC', 'OD', 'O365', 'TEAMS', 'PP')]
+        [ValidateSet('AAD', 'SPO', 'EXO', 'INTUNE', 'SC', 'OD', 'O365', 'TEAMS', 'PP', 'PLANNER')]
         [System.String[]]
         $Workloads,
 
@@ -58,10 +58,6 @@ function Start-M365DSCConfigurationExtract
         $TenantId,
 
         [Parameter()]
-        [System.string]
-        $ApplicationSecret,
-
-        [Parameter()]
         [System.String]
         $CertificateThumbprint,
 
@@ -73,6 +69,7 @@ function Start-M365DSCConfigurationExtract
         [System.Management.Automation.PSCredential]
         $CertificatePassword
     )
+
     $M365DSCExportStartTime = [System.DateTime]::Now
     $InformationPreference = "Continue"
 
@@ -94,44 +91,18 @@ function Start-M365DSCConfigurationExtract
     {
         $ComponentsToExtractSpecified = $true
     }
+
+    # Get Tenant Info
     $organization = ""
     $principal = "" # Principal represents the "NetBios" name of the tenant (e.g. the M365DSC part of M365DSC.onmicrosoft.com)
-    $ConnectionMode = $null
-    if (-not [String]::IsNullOrEmpty($ApplicationId) -and `
-            -not [String]::IsNullOrEmpty($TenantId) -and `
-            -not [String]::IsNullOrEmpty($CertificateThumbprint))
-    {
-        $ConnectionMode = 'ServicePrincipal'
-        $organization = Get-M365DSCTenantDomain -ApplicationId $ApplicationId `
-            -TenantId $TenantId `
-            -CertificateThumbprint $CertificateThumbprint
-    }
-    elseif (-not [String]::IsNullOrEmpty($CertificatePath))
-    {
-        $ConnectionMode = 'ServicePrincipal'
-        $organization = $TenantId
-    }
-    elseif (-not [String]::IsNullOrEmpty($GlobalAdminAccount))
-    {
-        $ConnectionMode = 'Credential'
-        if ($null -ne $GlobalAdminAccount -and $GlobalAdminAccount.UserName.Contains("@"))
-        {
-            $organization = $GlobalAdminAccount.UserName.Split("@")[1]
-        }
-    }
+
+    $ConnectionMode = 'ServicePrincipal'
+    $organization = Get-M365DSCTenantDomain -ApplicationId $ApplicationId `
+        -TenantId $TenantId `
+        -CertificateThumbprint $CertificateThumbprint
     if ($organization.IndexOf(".") -gt 0)
     {
         $principal = $organization.Split(".")[0]
-    }
-
-    $ComponentsToSkip = @()
-    if ($Mode -eq 'Default')
-    {
-        $ComponentsToSkip = $Global:FullComponents
-    }
-    elseif ($Mode -eq 'Lite')
-    {
-        $ComponentsToSkip = $Global:DefaultComponents + $Global:FullComponents
     }
 
     $AzureAutomation = $false
@@ -265,6 +236,11 @@ function Start-M365DSCConfigurationExtract
                 'EX'
                 {
                     $currentWorkload = 'EXO';
+                    break
+                }
+                'IN'
+                {
+                    $currentWorkload = 'INTUNE';
                     break
                 }
                 'O3'
@@ -414,7 +390,7 @@ function Start-M365DSCConfigurationExtract
                 if ($GenerateInfo)
                 {
                     $exportString += "`r`n        # For information on how to use this resource, please refer to:`r`n"
-                    $exportString += "        # https://github.com/microsoft/Microsoft365DSC/wiki/$resourceName`r`n"
+                    $exportString += "        # https://github.com/microsoft/Microsoft365DSC/wiki/$($resource.Name.Split('.')[0].Replace('MSFT_', ''))`r`n"
                 }
                 $exportString += Export-TargetResource @parameters
                 $i++
@@ -534,41 +510,17 @@ function Start-M365DSCConfigurationExtract
 
     #region Benchmarks
     $M365DSCExportEndTime = [System.DateTime]::Now
-    $timeTaken = New-Timespan -Start ($M365DSCExportStartTime.ToString()) `
+    $timeTaken = New-TimeSpan -Start ($M365DSCExportStartTime.ToString()) `
         -End ($M365DSCExportEndTime.ToString())
-    Write-Host "$($Global:M365DSCEmojiHourglass) Export took {" -NoNewLine
-    Write-Host "$($timeTaken.TotalSeconds) seconds" -NoNewLine -ForegroundColor Cyan
+    Write-Host "$($Global:M365DSCEmojiHourglass) Export took {" -NoNewline
+    Write-Host "$($timeTaken.TotalSeconds) seconds" -NoNewline -ForegroundColor Cyan
     Write-Host "}"
     #endregion
 
     Write-ExtractionStates -OutputDSCPath $OutputDSCPath -ResourceExtractionStates $resourceExtractionStates -ResourceTimeTotalTaken $resourceTimeTotalTaken
 
-    if (!$AzureAutomation)
-    {
-        $LCMConfig = Get-DscLocalConfigurationManager
-        if ($null -ne $LCMConfig.CertificateID)
-        {
-            try
-            {
-                # Export the certificate assigned to the LCM
-                $certPath = $OutputDSCPath + "M365DSC.cer"
-                Export-Certificate -FilePath $certPath `
-                    -Cert "cert:\LocalMachine\my\$($LCMConfig.CertificateID)" `
-                    -Type CERT `
-                    -NoClobber | Out-Null
-                Add-ConfigurationDataEntry -Node "localhost" `
-                    -Key "CertificateFile" `
-                    -Value "M365DSC.cer" `
-                    -Description "Path of the certificate used to encrypt credentials in the file."
-            }
-            catch
-            {
-                Write-Verbose -Message $_
-            }
-        }
-        $outputConfigurationData = $OutputDSCPath + "ConfigurationData.psd1"
-        New-ConfigurationDataDocument -Path $outputConfigurationData
-    }
+    $outputConfigurationData = $OutputDSCPath + "ConfigurationData.psd1"
+    New-ConfigurationDataDocument -Path $outputConfigurationData
 
     if ($shouldOpenOutputDirectory)
     {
@@ -597,7 +549,7 @@ function Remove-RemoteSessions
             for ($index = 0; $index -lt $existingPSSession.count; $index++)
             {
                 $session = $existingPSSession[$index]
-                Remove-PSSession -session $session
+                Remove-PSSession -Session $session
 
                 # Remove any previous modules loaded because of the current PSSession
                 if ($null -ne $session.PreviousModuleName)
