@@ -374,7 +374,7 @@ function Export-TargetResource
 
     try
     {
-        [array]$AllRoleAssignmentPolicies = Get-RoleAssignmentPolicy -ErrorAction
+        [array]$AllRoleAssignmentPolicies = Get-RoleAssignmentPolicy -ErrorAction Stop
 
         $dscContent = ""
 
