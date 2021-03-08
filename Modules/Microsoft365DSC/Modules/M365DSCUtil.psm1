@@ -154,7 +154,8 @@ function Get-TeamEnabledOffice365Groups
         $endpoint = Get-AzureEnvironmentEndpoint -AzureCloudEnvironmentName $Global:appIdentityParams.AzureCloudEnvironmentName -EndpointName "MsGraphEndpointResourceId"
         $accessToken = Get-AppIdentityAccessToken $endpoint
 
-        $httpClient = [Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities]::GetClient("Bearer $accessToken", "Get-TeamTraceCustom")
+        $clientFactory = [Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpClientFactory]::new()
+        $httpClient = $clientFactory.Create("Bearer $accessToken", "Get-TeamTraceCustom")
 
         $requestUri = [Uri]::new("$endpoint/v1.0/groups?$filter=groupTypes/any(c:c+eq+'Unified')&`$select=id,resourceProvisioningOptions,displayName,description,visibility,mailnickname,classification")
         Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
@@ -170,7 +171,10 @@ function Get-TeamEnabledOffice365Groups
     }
     finally
     {
-        $httpClient.Dispose()
+        if ($null -ne $httpClient)
+        {
+            $httpClient.Dispose()
+        }
     }
 
     return $allTeams
@@ -202,13 +206,14 @@ function Get-AllTeamsCached
     # this is actually the only way to get the team details, but when running in parallel without any limits
     # throttling is bound to come up and it is NOT handled at all
     # Get-Team
+    $clientFactory = [Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpClientFactory]::new()
     $accessToken = Get-AppIdentityAccessToken $endpoint
     $allTeams = Get-TeamEnabledOffice365Groups
 
     $allTeams | ForEach-Object {
         try
         {
-            $singleTeamClient = [Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities]::GetClient("Bearer $accessToken", "Get-TeamTraceCustom")
+            $singleTeamClient = $clientFactory.Create("Bearer $accessToken", "Get-TeamTraceCustom")
             $teamToRetrieve = $_
             Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
                 $accessToken = Get-AppIdentityAccessToken $endpoint
@@ -242,7 +247,10 @@ function Get-AllTeamsCached
         }
         finally
         {
-            $singleTeamClient.Dispose()
+            if ($null -ne $singleTeamClient)
+            {
+                $singleTeamClient.Dispose()
+            }
         }
     }
 
@@ -2319,8 +2327,10 @@ function Get-M365DSCExportContentForResource
     }
 
     # Ensure the string properties are properly formatted;
-    $Results = Format-M365DSCString -Properties $Results `
-        -ResourceName $ResourceName
+
+    # This is the M365DSC fix for special characters. We at SysKit have are own inside our own Get-DSCBlockEx and for the timebeing will stick with it
+    # $Results = Format-M365DSCString -Properties $Results `
+    #     -ResourceName $ResourceName
 
     $content = "        $ResourceName " + (New-Guid).ToString() + "`r`n"
     $content += "        {`r`n"
@@ -2363,7 +2373,7 @@ function Get-M365DSCExportContentForResource
     {
         $isCimArray = $null -ne $PropertiesCimArrays -and $PropertiesCimArrays.Contains($dscProp)
         $partialContent = Convert-DSCStringParamToVariable -DSCBlock $partialContent `
-            -ParameterName $dscProp -IsCimArray $isCimArray
+            -ParameterName $dscProp -IsCIMArray $isCimArray
     }
 
     if ($partialContent.ToLower().IndexOf($OrganizationName.ToLower()) -gt 0)
@@ -2506,7 +2516,7 @@ function Load-CSOMProperties
 
         $exprType = [System.Linq.Expressions.Expression]
         $parameterExprType = [System.Linq.Expressions.ParameterExpression].MakeArrayType()
-        $lambdaMethod = $exprType.GetMethods() | ? { $_.Name -eq "Lambda" -and $_.IsGenericMethod -and $_.GetParameters().Length -eq 2 -and $_.GetParameters()[1].ParameterType -eq $parameterExprType }
+        $lambdaMethod = $exprType.GetMethods() | Where-Object { $_.Name -eq "Lambda" -and $_.IsGenericMethod -and $_.GetParameters().Length -eq 2 -and $_.GetParameters()[1].ParameterType -eq $parameterExprType }
         $lambdaMethodGeneric = Invoke-Expression "`$lambdaMethod.MakeGenericMethod([System.Func``2[$($type.FullName),System.Object]])"
         $expressions = @()
 
@@ -2764,7 +2774,7 @@ Hashtable that contains the list of Key properties and their values.
         {
             $value = "@{"
             $hash = $NewParams.Item($_)
-            $hash.Keys | foreach-object {
+            $hash.Keys | ForEach-Object {
                 try
                 {
                     $escapedItemValue = Get-DSCPSTokenValue -Value $hash.Item($_) -AllowSpecialCharachters $AllowSpecialCharachtersInValues

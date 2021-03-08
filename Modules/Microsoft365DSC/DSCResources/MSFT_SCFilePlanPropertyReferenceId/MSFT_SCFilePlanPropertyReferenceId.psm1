@@ -230,7 +230,7 @@ function Export-TargetResource
 
     try
     {
-        $Properties = Get-FilePlanPropertyReferenceId -ErrorAction
+        $Properties = Get-FilePlanPropertyReferenceId -ErrorAction Stop
 
         $i = 1
         $dscContent = ""

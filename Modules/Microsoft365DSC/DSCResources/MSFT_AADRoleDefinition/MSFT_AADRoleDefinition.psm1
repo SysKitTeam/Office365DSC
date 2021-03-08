@@ -55,7 +55,10 @@ function Get-TargetResource
 
         [Parameter()]
         [System.String]
-        $CertificateThumbprint
+        $CertificateThumbprint,
+
+        [Parameter()]
+        $RawInputObject
     )
 
     Write-Verbose -Message "Getting configuration of Azure AD role definition"
@@ -69,27 +72,34 @@ function Get-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
-        -InboundParameters $PSBoundParameters
-
     $nullReturn = $PSBoundParameters
     $nullReturn.Ensure = "Absent"
     try
     {
-        try
+        if ($RawInputObject)
         {
-            if ($null -ne $Id -or $Id -ne "")
+            $AADRoleDefinition = $RawInputObject
+        }
+        else
+        {
+            $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
+                -InboundParameters $PSBoundParameters
+
+            try
             {
-                $AADRoleDefinition = Get-AzureADMSRoleDefinition -Id $Id
+                if ($null -ne $Id -or $Id -ne "")
+                {
+                    $AADRoleDefinition = Get-AzureADMSRoleDefinition -Id $Id
+                }
             }
-        }
-        catch
-        {
-            Write-Verbose -Message "Could not retrieve AAD roledefinition by Id: {$Id}"
-        }
-        if ($null -eq $AADRoleDefinition)
-        {
-            $AADRoleDefinition = Get-AzureADMSRoleDefinition -Filter "DisplayName eq '$($DisplayName)'"
+            catch
+            {
+                Write-Verbose -Message "Could not retrieve AAD roledefinition by Id: {$Id}"
+            }
+            if ($null -eq $AADRoleDefinition)
+            {
+                $AADRoleDefinition = Get-AzureADMSRoleDefinition -Filter "DisplayName eq '$($DisplayName)'"
+            }
         }
         if ($null -eq $AADRoleDefinition)
         {
@@ -380,6 +390,7 @@ function Export-TargetResource
                 Id                    = $AADRoleDefinition.Id
                 IsEnabled             = $true
                 RolePermissions       = @("temp")
+                RawInputObject        = $AADRoleDefinition
             }
             $Results = Get-TargetResource @Params
 

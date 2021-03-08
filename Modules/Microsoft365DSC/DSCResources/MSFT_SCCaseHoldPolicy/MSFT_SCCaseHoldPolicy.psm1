@@ -56,54 +56,54 @@ function Get-TargetResource
     #endregion
 
     $PolicyObject = $null
-    if ($RawInputObject)
-    {
-        $PolicyObject = $RawInputObject
-    }
-    else
-    {
-        if ($Global:CurrentModeIsExport)
-        {
-            $ConnectionMode = New-M365DSCConnection -Platform 'SecurityComplianceCenter' `
-                -InboundParameters $PSBoundParameters `
-                -SkipModuleReload $true
-        }
-        else
-        {
-            $ConnectionMode = New-M365DSCConnection -Platform 'SecurityComplianceCenter' `
-                -InboundParameters $PSBoundParameters
-        }
 
     $nullReturn = $PSBoundParameters
     $nullReturn.Ensure = 'Absent'
     try
     {
-        $PolicyObject = Get-CaseHoldPolicy -Case $Case -Identity $Name -ErrorAction SilentlyContinue
-    }
+        if ($RawInputObject)
+        {
+            $PolicyObject = $RawInputObject
+        }
+        else
+        {
+            if ($Global:CurrentModeIsExport)
+            {
+                $ConnectionMode = New-M365DSCConnection -Platform 'SecurityComplianceCenter' `
+                    -InboundParameters $PSBoundParameters `
+                    -SkipModuleReload $true
+            }
+            else
+            {
+                $ConnectionMode = New-M365DSCConnection -Platform 'SecurityComplianceCenter' `
+                    -InboundParameters $PSBoundParameters
+            }
 
-
-    if ($null -eq $PolicyObject)
-    {
-            Write-Verbose -Message "SCCaseHoldPolicy $Name does not exist."
-            return $nullReturn
-    }
-    else
-    {
-        Write-Verbose "Found existing SCCaseHoldPolicy $($Name)"
-        $result = @{
-            Ensure               = 'Present'
-            Name                 = $PolicyObject.Name
-            Case                 = $Case
-            Enabled              = $PolicyObject.Enabled
-            Comment              = $PolicyObject.Comment
-            ExchangeLocation     = $PolicyObject.ExchangeLocation.Name
-            PublicFolderLocation = $PolicyObject.PublicFolderLocation.Name
-            SharePointLocation   = $PolicyObject.SharePointLocation.Name
+            $PolicyObject = Get-CaseHoldPolicy -Case $Case -Identity $Name -ErrorAction SilentlyContinue
         }
 
-        Write-Verbose -Message "Get-TargetResource Result: `n $(Convert-M365DscHashtableToString -Hashtable $result)"
-        return $result
-    }
+        if ($null -eq $PolicyObject)
+        {
+            Write-Verbose -Message "SCCaseHoldPolicy $Name does not exist."
+            return $nullReturn
+        }
+        else
+        {
+            Write-Verbose "Found existing SCCaseHoldPolicy $($Name)"
+            $result = @{
+                Ensure               = 'Present'
+                Name                 = $PolicyObject.Name
+                Case                 = $Case
+                Enabled              = $PolicyObject.Enabled
+                Comment              = $PolicyObject.Comment
+                ExchangeLocation     = $PolicyObject.ExchangeLocation.Name
+                PublicFolderLocation = $PolicyObject.PublicFolderLocation.Name
+                SharePointLocation   = $PolicyObject.SharePointLocation.Name
+            }
+
+            Write-Verbose -Message "Get-TargetResource Result: `n $(Convert-M365DscHashtableToString -Hashtable $result)"
+            return $result
+        }
     }
     catch
     {
@@ -382,39 +382,39 @@ function Export-TargetResource
     {
         [array]$cases = Get-ComplianceCase -ErrorAction Stop
 
-    $dscContent = ""
-    $i = 1
+        $dscContent = ""
+        $i = 1
         Write-Host "`r`n" -NoNewline
-    foreach ($case in $cases)
-    {
-        Write-Host "    |---[$i/$($Cases.Count)] Scanning Policies in Case {$($case.Name)}"
-        [array]$policies = Get-CaseHoldPolicy -Case $case.Name
-
-        $j = 1
-        foreach ($policy in $policies)
+        foreach ($case in $cases)
         {
-                Write-Host "        |---[$j/$($policies.Count)] $($policy.Name)" -NoNewline
-            $Params = @{
-                Name               = $policy.Name
-                Case               = $case.Name
-                GlobalAdminAccount = $GlobalAdminAccount
-                RawInputObject     = $policy
-            }
-            $Results = Get-TargetResource @Params
-            $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
-                -Results $Results
-            $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
-                -ConnectionMode $ConnectionMode `
-                -ModulePath $PSScriptRoot `
-                -Results $Results `
-                -GlobalAdminAccount $GlobalAdminAccount
-            Write-Host $Global:M365DSCEmojiGreenCheckMark
-            $j++
-        }
-        $i++
-    }
+            Write-Host "    |---[$i/$($Cases.Count)] Scanning Policies in Case {$($case.Name)}"
+            [array]$policies = Get-CaseHoldPolicy -Case $case.Name
 
-    return $dscContent
+            $j = 1
+            foreach ($policy in $policies)
+            {
+                Write-Host "        |---[$j/$($policies.Count)] $($policy.Name)" -NoNewline
+                $Params = @{
+                    Name               = $policy.Name
+                    Case               = $case.Name
+                    GlobalAdminAccount = $GlobalAdminAccount
+                    RawInputObject     = $policy
+                }
+                $Results = Get-TargetResource @Params
+                $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
+                    -Results $Results
+                $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
+                    -ConnectionMode $ConnectionMode `
+                    -ModulePath $PSScriptRoot `
+                    -Results $Results `
+                    -GlobalAdminAccount $GlobalAdminAccount
+                Write-Host $Global:M365DSCEmojiGreenCheckMark
+                $j++
+            }
+            $i++
+        }
+
+        return $dscContent
     }
     catch
     {

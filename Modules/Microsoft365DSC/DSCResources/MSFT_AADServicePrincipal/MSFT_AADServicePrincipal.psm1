@@ -83,7 +83,10 @@ function Get-TargetResource
 
         [Parameter()]
         [System.String]
-        $CertificateThumbprint
+        $CertificateThumbprint,
+
+        [Parameter()]
+        $RawInputObject
     )
 
     Write-Verbose -Message "Getting configuration of Azure AD ServicePrincipal"
@@ -97,28 +100,36 @@ function Get-TargetResource
     Add-M365DSCTelemetryEvent -Data $data
     #endregion
 
-    $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
-        -InboundParameters $PSBoundParameters
     $nullReturn = $PSBoundParameters
     $nullReturn.Ensure = "Absent"
     try
     {
-        try
+        if ($RawInputObject)
         {
-            if (-not [System.String]::IsNullOrEmpty($ObjectID))
-            {
-                $AADServicePrincipal = Get-AzureADServicePrincipal -ObjectId $ObjectId `
-                    -ErrorAction Stop
-            }
+            $AADServicePrincipal = $RawInputObject
         }
-        catch
+        else
         {
-            Write-Error -Message "Azure AD ServicePrincipal with ObjectID: $($ObjectID) could not be retrieved"
-        }
+            $ConnectionMode = New-M365DSCConnection -Platform 'AzureAD' `
+                -InboundParameters $PSBoundParameters
 
-        if ($null -eq $AADServicePrincipal)
-        {
-            $AADServicePrincipal = Get-AzureADServicePrincipal -Filter "AppID eq '$($AppId)'"
+            try
+            {
+                if (-not [System.String]::IsNullOrEmpty($ObjectID))
+                {
+                    $AADServicePrincipal = Get-AzureADServicePrincipal -ObjectId $ObjectId `
+                        -ErrorAction Stop
+                }
+            }
+            catch
+            {
+                Write-Error -Message "Azure AD ServicePrincipal with ObjectID: $($ObjectID) could not be retrieved"
+            }
+
+            if ($null -eq $AADServicePrincipal)
+            {
+                $AADServicePrincipal = Get-AzureADServicePrincipal -Filter "AppID eq '$($AppId)'"
+            }
         }
         if ($null -eq $AADServicePrincipal)
         {
@@ -474,6 +485,7 @@ function Export-TargetResource
                 TenantId              = $TenantId
                 CertificateThumbprint = $CertificateThumbprint
                 AppID                 = $AADServicePrincipal.AppId
+                RawInputObject        = $AADServicePrincipal
             }
             $Results = Get-TargetResource @Params
 
