@@ -963,14 +963,13 @@ function Export-M365DSCConfiguration
         $ComponentsToExtract,
 
         [Parameter()]
+        [Switch]
+        $AllComponents,
+
+        [Parameter()]
         [ValidateSet('AAD', 'SPO', 'EXO', 'INTUNE', 'SC', 'OD', 'O365', 'PLANNER', 'PP', 'TEAMS')]
         [System.String[]]
         $Workloads,
-
-        [Parameter()]
-        [ValidateSet('Lite', 'Default', 'Full')]
-        [System.String]
-        $Mode = 'Default',
 
         [Parameter()]
         [ValidateRange(1, 100)]
@@ -1059,11 +1058,11 @@ function Export-M365DSCConfiguration
                 -GenerateInfo $GenerateInfo `
                 -Quiet
         }
-        elseif ($null -ne $Mode)
+        elseif ($AllComponents)
         {
             Start-M365DSCConfigurationExtract -GlobalAdminAccount $GlobalAdminAccount `
-                -Mode $Mode `
                 -Path $Path -FileName $FileName `
+                -AllComponents `
                 -MaxProcesses $MaxProcesses `
                 -ConfigurationName $ConfigurationName `
                 -ApplicationId $ApplicationId `
