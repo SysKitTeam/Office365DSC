@@ -166,7 +166,7 @@ function Get-TargetResource
     try
     {
         $CurrentHubUrl = $null
-        if($RawInputObject)
+        if ($RawInputObject)
         {
             $site = $RawInputObject.Site
             $hubSites = $RawInputObject.HubSites
@@ -192,7 +192,7 @@ function Get-TargetResource
         {
             $hubId = $site.HubSiteId
             Write-Verbose -Message "Site {$Url} is associated with HubSite {$hubId}"
-            $hubSite = $hubSites | Where-Object -FilterScript {$_.ID -eq $hubId}
+            $hubSite = $hubSites | Where-Object -FilterScript { $_.ID -eq $hubId }
 
             if ($null -ne $hubSite)
             {
@@ -243,15 +243,20 @@ function Get-TargetResource
                 }
             }
         }
-        if ($site.StorageQuotaWarningLevel -gt 0)
-        {
-            $quotaWarning = $site.StorageQuotaWarningLevel / 100
-        }
 
-        if ($site.StorageMaximumLevel -gt 0)
-        {
-            $quotaMax = $site.StorageMaximumLevel / 100
-        }
+        # update SysKit Trace: from what we can tell it's correct without the division, at least when it's compared to the admin center
+        # it could be a bug there, but will stick with the older behavior from before the M365DSC new version merge
+        $quotaWarning = $site.StorageWarningLevel
+        $quotaMax = $site.StorageMaximumLevel
+        # if ($site.StorageWarningLevel -gt 0)
+        # {
+        #     $quotaWarning = $site.StorageWarningLevel / 100
+        # }
+
+        # if ($site.StorageMaximumLevel -gt 0)
+        # {
+        #     $quotaMax = $site.StorageMaximumLevel / 100
+        # }
 
         return @{
             Url                                         = $Url
@@ -486,7 +491,7 @@ function Set-TargetResource
     #endregion
 
     $ConnectionMode = New-M365DSCConnection -Platform 'PnP' `
-                -InboundParameters $PSBoundParameters
+        -InboundParameters $PSBoundParameters
 
     $CurrentValues = Get-TargetResource @PSBoundParameters
 
@@ -516,25 +521,25 @@ function Set-TargetResource
         {
             New-PnPTenantSite @CreationParams -ErrorAction Stop | Out-Null
 
-        $site = $null
-        $circuitBreaker = 0
-        do
-        {
-            Write-Verbose -Message "Waiting for another 15 seconds for site to be ready."
-            Start-Sleep -Seconds 15
-            try
+            $site = $null
+            $circuitBreaker = 0
+            do
             {
-                $site = Get-PnPTenantSite -Url $Url -ErrorAction Stop
-            }
-            catch
-            {
-                $site = @{Status = 'Creating' }
-            }
-            $circuitBreaker++
-        } while ($site.Status -eq 'Creating' -and $circuitBreaker -lt 20)
+                Write-Verbose -Message "Waiting for another 15 seconds for site to be ready."
+                Start-Sleep -Seconds 15
+                try
+                {
+                    $site = Get-PnPTenantSite -Url $Url -ErrorAction Stop
+                }
+                catch
+                {
+                    $site = @{Status = 'Creating' }
+                }
+                $circuitBreaker++
+            } while ($site.Status -eq 'Creating' -and $circuitBreaker -lt 20)
 
-        Write-Verbose -Message "Site {$url} has been successfully created and is {$($site.Status)}."
-    }
+            Write-Verbose -Message "Site {$url} has been successfully created and is {$($site.Status)}."
+        }
         catch
         {
             $Message = "Creation of the site $($Url) failed: $($_.Exception.Message)"
@@ -583,19 +588,19 @@ function Set-TargetResource
             }
         }
         $UpdateParams = @{
-            Url                            = $Url
-            DisableFlows                   = $DisableFlowsValue
-            SharingCapability              = $SharingCapability
-            StorageMaximumLevel            = $StorageMaximumLevel
-            StorageWarningLevel            = $StorageWarningLevel
+            Url                                         = $Url
+            DisableFlows                                = $DisableFlowsValue
+            SharingCapability                           = $SharingCapability
+            StorageMaximumLevel                         = $StorageMaximumLevel
+            StorageWarningLevel                         = $StorageWarningLevel
             # Cannot be set, throws an error about Object not being in a valid state;
             #AllowSelfServiceUpgrade        = $AllowSelfServiceUpgrade
-            Owners                         = $Owner
-            CommentsOnSitePagesDisabled    = $CommentsOnSitePagesDisabled
-            DefaultLinkPermission          = $DefaultLinkPermission
-            DefaultSharingLinkType         = $DefaultSharingLinkType
-            DisableAppViews                = $DisableAppViews
-            DisableCompanyWideSharingLinks = $DisableCompanyWideSharingLinks
+            Owners                                      = $Owner
+            CommentsOnSitePagesDisabled                 = $CommentsOnSitePagesDisabled
+            DefaultLinkPermission                       = $DefaultLinkPermission
+            DefaultSharingLinkType                      = $DefaultSharingLinkType
+            DisableAppViews                             = $DisableAppViews
+            DisableCompanyWideSharingLinks              = $DisableCompanyWideSharingLinks
             #LCID Cannot be set after a Template has been applied;
             #LocaleId                       = $LocaleId
             RestrictedToRegion                          = $RestrictedToRegion
@@ -652,31 +657,31 @@ function Set-TargetResource
         {
             if ($PSBoundParameters.HubUrl.TrimEnd("/") -ne $PSBoundParameters.Url.TrimEnd("/"))
             {
-            if ([System.String]::IsNullOrEmpty($HubUrl))
-            {
-                if ($site.HubSiteId -ne "00000000-0000-0000-0000-000000000000")
+                if ([System.String]::IsNullOrEmpty($HubUrl))
                 {
-                    Write-Verbose -Message "Removing Hub Site Association for {$Url}"
-                    Remove-PnPHubSiteAssociation -Site $Url
+                    if ($site.HubSiteId -ne "00000000-0000-0000-0000-000000000000")
+                    {
+                        Write-Verbose -Message "Removing Hub Site Association for {$Url}"
+                        Remove-PnPHubSiteAssociation -Site $Url
+                    }
+                }
+                else
+                {
+                    $hubSite = Get-PnPHubSite -Identity $HubUrl
+
+                    if ($null -eq $hubSite)
+                    {
+                        throw ("Specified HubUrl ($HubUrl) is not a Hub site. Make sure you " + `
+                                "have promoted that to a Hub site first.")
+                    }
+
+                    if ($site.HubSiteId -ne $hubSite.Id)
+                    {
+                        Write-Verbose -Message "Adding Hub Association on {$HubUrl} for site {$Url}"
+                        Add-PnPHubSiteAssociation -Site $Url -HubSite $HubUrl
+                    }
                 }
             }
-            else
-            {
-                $hubSite = Get-PnPHubSite -Identity $HubUrl
-
-                if ($null -eq $hubSite)
-                {
-                    throw ("Specified HubUrl ($HubUrl) is not a Hub site. Make sure you " + `
-                            "have promoted that to a Hub site first.")
-                }
-
-                if ($site.HubSiteId -ne $hubSite.Id)
-                {
-                    Write-Verbose -Message "Adding Hub Association on {$HubUrl} for site {$Url}"
-                    Add-PnPHubSiteAssociation -Site $Url -HubSite $HubUrl
-                }
-            }
-        }
             else
             {
                 Write-Verbose -Message ("Ignoring the HubUrl parameter because it is equal to " + `
@@ -907,10 +912,11 @@ function Export-TargetResource
     #endregion
 
     $ConnectionMode = New-M365DSCConnection -Platform 'PnP' `
-                -InboundParameters $PSBoundParameters
+        -InboundParameters $PSBoundParameters
 
     try
     {
+        $context = Get-PnPContext
         $sites = Get-PnPTenantSite -ErrorAction Stop | Where-Object -FilterScript { $_.Template -ne 'SRCHCEN#0' -and $_.Template -ne 'SPSMSITEHOST#0' }
         [array]$hubSites = Get-PnPHubSite
         $organization = ""
@@ -934,9 +940,10 @@ function Export-TargetResource
         Write-Host "`r`n" -NoNewline
         foreach ($site in $sites)
         {
-            $site = Get-PnPTenantSite -Url $site.Url -Detailed
-            Write-Host "    [$i/$($sites.Length)] $($site.Url)" -NoNewLine
-                
+            # bypassing Pnp because it does not return everything, specificaly timezoneId and do not want an extra retrieval for get-pnpweb
+            $site = Get-SPOSiteDirect -Context $context -Url $site.Url
+            Write-Host "    [$i/$($sites.Length)] $($site.Url)" -NoNewline
+
             $siteTitle = "Null"
             if (-not [System.String]::IsNullOrEmpty($site.Title))
             {
@@ -955,8 +962,8 @@ function Export-TargetResource
                 CertificatePath       = $CertificatePath
                 CertificateThumbprint = $CertificateThumbprint
                 GlobalAdminAccount    = $GlobalAdminAccount
-                RawInputObject     =  @{
-                    Site = $site
+                RawInputObject        = @{
+                    Site     = $site
                     HubSites = $hubSites
                 }
             }
@@ -981,30 +988,31 @@ function Export-TargetResource
                 {
                     $Results.Remove("SharingBlockedDomainList") | Out-Null
                 }
-                    # Removing the HubUrl parameter if the value is equal to the Url parameter.
-                    # This to prevent issues if the site col has just been created and not yet
-                    # configured as a hubsite.
-                    if ([System.String]::IsNullOrEmpty($Results.HubUrl) -or `
-                        ($Results.Url.TrimEnd("/") -eq $Results.HubUrl.TrimEnd("/")))
-                    {
-                        $Results.Remove("HubUrl") | Out-Null
-                    }
+                # Removing the HubUrl parameter if the value is equal to the Url parameter.
+                # This to prevent issues if the site col has just been created and not yet
+                # configured as a hubsite.
+                # Update for SysKit Trace: not required for us
+                # if ([System.String]::IsNullOrEmpty($Results.HubUrl) -or `
+                #     ($Results.Url.TrimEnd("/") -eq $Results.HubUrl.TrimEnd("/")))
+                # {
+                #     $Results.Remove("HubUrl") | Out-Null
+                # }
 
                 $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
-                            -Results $Results
+                    -Results $Results
 
-                    $partialContent = Get-M365DSCExportContentForResource -ResourceName $ResourceName `
-                            -ConnectionMode $ConnectionMode `
-                            -ModulePath $PSScriptRoot `
-                            -Results $Results `
-                            -GlobalAdminAccount $GlobalAdminAccount
-                    if ($partialContent.ToLower().Contains($organization.ToLower()) -or `
-                            $partialContent.ToLower().Contains($principal.ToLower()))
-                    {
-                        $partialContent = $partialContent -ireplace [regex]::Escape('https://' + $principal + '.sharepoint.com/'), "https://`$(`$OrganizationName.Split('.')[0]).sharepoint.com/"
-                        $partialContent = $partialContent -ireplace [regex]::Escape("@" + $organization), "@`$(`$OrganizationName)"
-                    }
-                    $dscContent += $partialContent
+                $partialContent = Get-M365DSCExportContentForResource -ResourceName $ResourceName `
+                    -ConnectionMode $ConnectionMode `
+                    -ModulePath $PSScriptRoot `
+                    -Results $Results `
+                    -GlobalAdminAccount $GlobalAdminAccount
+                if ($partialContent.ToLower().Contains($organization.ToLower()) -or `
+                        $partialContent.ToLower().Contains($principal.ToLower()))
+                {
+                    $partialContent = $partialContent -ireplace [regex]::Escape('https://' + $principal + '.sharepoint.com/'), "https://`$(`$OrganizationName.Split('.')[0]).sharepoint.com/"
+                    $partialContent = $partialContent -ireplace [regex]::Escape("@" + $organization), "@`$(`$OrganizationName)"
+                }
+                $dscContent += $partialContent
                 Write-Host $Global:M365DSCEmojiGreenCheckMark
             }
             catch
