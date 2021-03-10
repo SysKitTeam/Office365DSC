@@ -104,6 +104,11 @@ function Get-TargetResource
         }
         else
         {
+            $enableSafeLinksForO365Clients = $AtpPolicyForO365.EnableSafeLinksForO365Clients
+            if($null -eq $enableSafeLinksForO365Clients)
+            {
+                $enableSafeLinksForO365Clients = $AtpPolicyForO365.EnableSafeLinksForClients
+            }
             $result = @{
                 IsSingleInstance                = "Yes"
                 Identity                        = $AtpPolicyForO365.Identity
