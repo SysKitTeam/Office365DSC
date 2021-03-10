@@ -540,18 +540,20 @@ function Get-M365DSCNormalizationRules
     }
 
     $result = @()
+    $allRules = Get-CsVoiceNormalizationRule
     foreach ($rule in $Rules)
     {
         $ruleName = $rule.Name.Replace("Tag:", "")
+        $ruleObject = $allRules | Where-Object -FilterScript { $_.Name -eq $ruleName }
         $currentRule = @{
             Identity            = $ruleName
-            Priority            = $rule.Priority
-            Description         = $rule.Description
-            Pattern             = $rule.Pattern
-            Translation         = $rule.Translation
-            IsInternalExtension = $rule.IsInternalExtension
+            Priority            = $ruleObject.Priority
+            Description         = $ruleObject.Description
+            Pattern             = $ruleObject.Pattern
+            Translation         = $ruleObject.Translation
+            IsInternalExtension = $ruleObject.IsInternalExtension
         }
-        if ([System.String]::IsNullOrEmpty($rule.Priority))
+        if ([System.String]::IsNullOrEmpty($ruleObject.Priority))
         {
             $currentRule.Remove("Priority") | Out-Null
         }
