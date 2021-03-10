@@ -2445,6 +2445,55 @@ function Execute-CSOMQueryRetry
     [Microsoft.SharePoint.Client.ClientContextExtensions]::ExecuteQueryRetry($context)
 }
 
+
+function Get-SPOSitesDirect
+{
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory = $true)]
+        [Microsoft.SharePoint.Client.ClientContext] $Context
+    )
+
+    $sitePropsFilter = [Microsoft.Online.SharePoint.TenantAdministration.SPOSitePropertiesEnumerableFilter]::new()
+    $sitePropsFilter.IncludeDetail = $true
+
+    $tenant = [Microsoft.Online.SharePoint.TenantAdministration.Tenant]::new($Context)
+    $results = [System.Collections.Generic.List[Microsoft.Online.SharePoint.TenantAdministration.SiteProperties]]::new()
+
+    [Microsoft.Online.SharePoint.TenantAdministration.SPOSitePropertiesEnumerable] $sitesList = $null
+
+    do
+    {
+        $sitesList = $tenant.GetSitePropertiesFromSharePointByFilters($sitePropsFilter)
+        $Context.Load($sitesList)
+        [Microsoft.SharePoint.Client.ClientContextExtensions]::ExecuteQueryRetry($Context)
+        $results.AddRange($sitesList)
+        $sitePropsFilter.StartIndex = $sitesList.NextStartIndexFromSharePoint;
+    }
+    while (![string]::IsNullOrWhiteSpace($sitesList.NextStartIndexFromSharePoint))
+
+    return $results
+}
+
+function Get-SPOSiteDirect
+{
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory = $true)]
+        [Microsoft.SharePoint.Client.ClientContext] $Context,
+
+        [Parameter(Mandatory = $true)]
+        [String]
+        $Url
+    )
+    $tenant = [Microsoft.Online.SharePoint.TenantAdministration.Tenant]::new($Context)
+    $siteProperties = $tenant.GetSitePropertiesByUrl($Url, $true)
+    $Context.Load($siteProperties);
+    [Microsoft.SharePoint.Client.ClientContextExtensions]::ExecuteQueryRetry($Context)
+
+    return $siteProperties
+}
+
 <#
 .Synopsis
     Facilitates the loading of specific properties of a Microsoft.SharePoint.Client.ClientObject object or Microsoft.SharePoint.Client.ClientObjectCollection object.
