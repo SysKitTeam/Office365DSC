@@ -148,6 +148,7 @@ function Get-TargetResource
             SearchResolveExactEmailOrUPN                  = $SPOTenantSettings.SearchResolveExactEmailOrUPN
             OfficeClientADALDisabled                      = $SPOTenantSettings.OfficeClientADALDisabled
             LegacyAuthProtocolsEnabled                    = $SPOTenantSettings.LegacyAuthProtocolsEnabled
+            RequireAcceptingAccountMatchInvitedAccount    = $SPOTenantSettings.RequireAcceptingAccountMatchInvitedAccount
             SignInAccelerationDomain                      = $SPOTenantSettings.SignInAccelerationDomain
             UsePersistentCookiesForExplorerView           = $SPOTenantSettings.UsePersistentCookiesForExplorerView
             UserVoiceForFeedbackEnabled                   = $SPOTenantSettings.UserVoiceForFeedbackEnabled
