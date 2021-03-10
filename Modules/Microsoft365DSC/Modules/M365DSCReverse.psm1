@@ -41,11 +41,6 @@ function Start-M365DSCConfigurationExtract
         $Workloads,
 
         [Parameter()]
-        [ValidateSet('Lite', 'Default', 'Full')]
-        [System.String]
-        $Mode,
-
-        [Parameter()]
         [System.Boolean]
         $GenerateInfo = $false,
 
@@ -286,11 +281,8 @@ function Start-M365DSCConfigurationExtract
             }
 
             $resourceExtractionStates[$msftResourceName] = 'NotIncluded'
-            if (($null -ne $ComponentsToExtract -and
-                    ($ComponentsToExtract -contains $resourceName -or $ComponentsToExtract -contains ("chck" + $resourceName))) -or
-                $AllComponents -or ($null -ne $Workloads -and $Workloads -contains $currentWorkload) -or `
-                ($null -eq $ComponentsToExtract -and $null -eq $Workloads) -and `
-                ($ComponentsToExtractSpecified -or -not $ComponentsToSkip.Contains($resourceName)))
+            if (($null -ne $ComponentsToExtract -and ($ComponentsToExtract -contains $resourceName -or $ComponentsToExtract -contains ("chck" + $resourceName))) -or `
+                    $AllComponents -or ($null -ne $Workloads -and $Workloads -contains $currentWorkload))
             {
                 $ResourcesToExport += $ResourceModule
                 $resourceExtractionStates[$msftResourceName] = 'ToBeLoaded'
