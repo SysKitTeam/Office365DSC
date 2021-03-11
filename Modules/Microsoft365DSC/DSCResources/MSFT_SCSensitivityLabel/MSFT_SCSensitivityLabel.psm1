@@ -256,7 +256,10 @@ function Get-TargetResource
             }
             if ($null -ne $label.EncryptionRightsDefinitions)
             {
-                $EncryptionRightsDefinitionsValue = Convert-EncryptionRightDefinition -RightsDefinition $label.EncryptionRightsDefinitions
+                $EncryptionRightsDefinitionsValue = $label.EncryptionRightsDefinitions
+
+                # SysKit Update: we prefer the older format
+                #$EncryptionRightsDefinitionsValue = Convert-EncryptionRightDefinition -RightsDefinition $label.EncryptionRightsDefinitions
             }
             Write-Verbose "Found existing Sensitivity Label $($Name)"
             $result = @{
@@ -300,6 +303,7 @@ function Get-TargetResource
                 EncryptionProtectionType                       = $label.EncryptionProtectionType
                 EncryptionRightsDefinitions                    = $EncryptionRightsDefinitionsValue
                 EncryptionRightsUrl                            = $label.EncryptionRightsUrl
+                EncryptionTemplateId                           = $label.EncryptionTemplateId
                 SiteAndGroupProtectionAllowAccessToGuestUsers  = $label.SiteAndGroupProtectionAllowAccessToGuestUsers
                 SiteAndGroupProtectionAllowEmailFromGuestUsers = $label.SiteAndGroupProtectionAllowEmailFromGuestUsers
                 SiteAndGroupProtectionAllowFullAccess          = $label.SiteAndGroupProtectionAllowFullAccess
