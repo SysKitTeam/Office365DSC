@@ -2,6 +2,7 @@
 class MSFT_TeamsChannelTab : OMI_BaseResource
 {
     [Key, Description("Display Name of the Channel Tab.")]String DisplayName;
+    [Key, Description("Team Group Mailnickname")] string TeamMailNickName;
     [Required, Description("Display Name of the Team.")]String TeamName;
     [Required, Description("Display Name of the Channel.")]String ChannelName;
     [Write, Description("Unique Id of the Team of the instance on the source tenant.")]String TeamId;

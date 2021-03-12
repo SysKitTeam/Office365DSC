@@ -89,7 +89,7 @@ function Get-TargetResource
     {
         if ($RawInputObject)
         {
-            $teamInstance = $RawInputObject.TeamId
+            $teamInstance = $RawInputObject.Team
             $channelInstance = $RawInputObject.Channel
             $tabInstance = $RawInputObject.Tab
         }
@@ -169,6 +169,7 @@ function Get-TargetResource
         return @{
             DisplayName           = $tabInstance.DisplayName
             TeamName              = $TeamName
+            TeamMailNickName      = $teamInstance.MailNickName
             TeamId                = $teamInstance.GroupId
             ChannelName           = $channelInstance.DisplayName
             SortOrderIndex        = $tabInstance.SortOrderIndex
