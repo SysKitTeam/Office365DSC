@@ -86,6 +86,9 @@ function Get-TargetResource
 
     try
     {
+        # it appears that not all of the properties are retrieved when calling Get-ComplianceSearch without the Identity param (the ouside logic)
+        # i.e. GetCaseHoldPolicy has the same problem but also has additional parameters to get the details. No such parameters for Get-ComplianceSearch
+        $RawInputObject = $null
         if ($RawInputObject)
         {
             $Search = $RawInputObject
