@@ -1868,7 +1868,8 @@ function Get-M365DSCIntuneDeviceConfigurationPolicyiOS
     )
     try
     {
-        $Url = "https://graph.microsoft.com/beta/deviceManagement/deviceConfigurations/$PolicyId"
+
+        $Url = Get-MSGraphUrlForCurrentEnvironment -RelativeUrl "deviceManagement/deviceConfigurations/$PolicyId" -UseBeta
         $response = Invoke-MSGraphRequest -HttpMethod Get `
             -Url $Url
         return $response
@@ -1920,7 +1921,7 @@ function New-M365DSCIntuneDeviceConfigurationPolicyiOS
         }
         $jsonString = $jsonString.TrimEnd(",`r`n")
         $jsonString += "`r`n}"
-        $Url = 'https://graph.microsoft.com/beta/deviceManagement/deviceConfigurations/'
+        $Url = Get-MSGraphUrlForCurrentEnvironment -RelativeUrl 'deviceManagement/deviceConfigurations/' -UseBeta
         Write-Verbose -Message "Creating new Device config policy with JSON payload: `r`n$jsonString"
         Invoke-MSGraphRequest -HttpMethod POST `
             -Url $Url `
@@ -1977,7 +1978,7 @@ function Set-M365DSCIntuneDeviceConfigurationPolicyiOS
         }
         $jsonString = $jsonString.TrimEnd(",`r`n")
         $jsonString += "`r`n}"
-        $Url = "https://graph.microsoft.com/beta/deviceManagement/deviceConfigurations/$PolicyId"
+        $Url = Get-MSGraphUrlForCurrentEnvironment -RelativeUrl "deviceManagement/deviceConfigurations/$PolicyId" -UseBeta
         Write-Verbose -Message "Updating Device config policy with JSON payload: `r`n$jsonString"
         Invoke-MSGraphRequest -HttpMethod PATCH `
             -Url $Url `

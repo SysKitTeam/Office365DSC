@@ -306,7 +306,7 @@ function New-M365DSCIntuneDeviceEnrollmentLimitRestriction
     try
     {
         Write-Verbose -Message "Creating new Device Enrollment Limit Restriction with payload {$JsonContent}"
-        $Url = "https://graph.microsoft.com/Beta/deviceManagement/deviceEnrollmentConfigurations/"
+        $Url = Get-MSGraphUrlForCurrentEnvironment -RelativeUrl "deviceManagement/deviceEnrollmentConfigurations/" -UseBeta
         Invoke-MSGraphRequest -Url $Url `
             -HttpMethod POST `
             -Headers @{'Content-Type' = 'application/json' } `
@@ -338,7 +338,7 @@ function Set-M365DSCIntuneDeviceEnrollmentLimitRestriction
     try
     {
         Write-Verbose -Message "Updating Device Enrollment Limit Restriction with payload {$JsonContent}"
-        $Url = "https://graph.microsoft.com/Beta/deviceManagement/deviceEnrollmentConfigurations/$RestrictionId"
+        $Url = Get-MSGraphUrlForCurrentEnvironment -RelativeUrl "deviceManagement/deviceEnrollmentConfigurations/$RestrictionId" -UseBeta
         Invoke-MSGraphRequest -Url $Url `
             -HttpMethod PATCH `
             -Headers @{'Content-Type' = 'application/json' } `
