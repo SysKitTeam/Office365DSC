@@ -1824,9 +1824,15 @@ function Export-TargetResource
             }
             $result = Get-TargetResource @params
             $result.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
+            $result.AppsVisibilityList = Convert-ObjectArrayToSimpleJsonStringArray -Objects $result.AppsVisibilityList
+            $result.CompliantAppsList = Convert-ObjectArrayToSimpleJsonStringArray -Objects $result.CompliantAppsList
+            $result.EmailInDomainSuffixes = Convert-ObjectArrayToSimpleJsonStringArray -Objects $result.EmailInDomainSuffixes
+            $result.SafariManagedDomains = Convert-ObjectArrayToSimpleJsonStringArray -Objects $result.SafariManagedDomains
+            $result.SafariPasswordAutoFillDomains = Convert-ObjectArrayToSimpleJsonStringArray -Objects $result.SafariPasswordAutoFillDomains
+
             $content += "        IntuneDeviceConfigurationPolicyiOS " + (New-Guid).ToString() + "`r`n"
             $content += "        {`r`n"
-            $currentDSCBlock = Get-DSCBlock -Params $result -ModulePath $PSScriptRoot
+            $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot
             $content += Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
             $content += "        }`r`n"
             $i++
