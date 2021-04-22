@@ -583,10 +583,11 @@ function New-M365DSCTeamsChannelTab
         $Parameters
     )
 
+    $teamsAppUrl = Get-MSGraphUrlForCurrentEnvironment -RelativeUrl "appCatalogs/teamsApps/$($Parameters.TeamsApp)"
     $jsonContent = @"
     {
         "displayName": "$($Parameters.DisplayName)",
-        "teamsApp@odata.bind": "https://graph.microsoft.com/v1.0/appCatalogs/teamsApps/$($Parameters.TeamsApp)",
+        "teamsApp@odata.bind": "$($teamsAppUrl)",
         "sortOrderIndex": "$($Parameters.SortOrderIndex)",
         "configuration": {
             "websiteUrl": "$($Parameters.WebSiteUrl)",
@@ -596,7 +597,7 @@ function New-M365DSCTeamsChannelTab
         }
     }
 "@
-    $Url = "https://graph.microsoft.com/beta/teams/$($Parameters.TeamId)/channels/$($Parameters.ChannelId)/tabs"
+    $Url = Get-MSGraphUrlForCurrentEnvironment -RelativeUrl  "teams/$($Parameters.TeamId)/channels/$($Parameters.ChannelId)/tabs" -UseBeta
     Write-Verbose -Message "Creating new Teams Tab with JSON payload: `r`n$JSONContent"
     Write-Verbose -Message "POST to {$Url}"
     Invoke-MgGraphRequest -Method POST `
@@ -630,7 +631,7 @@ function Set-M365DSCTeamsChannelTab
         }
     }
 "@
-    $Url = "https://graph.microsoft.com/beta/teams/$($Parameters.TeamId)/channels/$($Parameters.ChannelId)/tabs/$tabId"
+    $Url = Get-MSGraphUrlForCurrentEnvironment -RelativeUrl  "teams/$($Parameters.TeamId)/channels/$($Parameters.ChannelId)/tabs/$tabId" -UseBeta
     Write-Verbose -Message "Updating Teams Tab with JSON payload: `r`n$JSONContent"
     Write-Verbose -Message "PATCH to {$Url}"
     Invoke-MgGraphRequest -Method PATCH `
@@ -657,7 +658,7 @@ function Get-M365DSCTeamChannelTab
         $DisplayName
     )
 
-    $Url = "https://graph.microsoft.com/beta/teams/$TeamID/channels/$ChannelId/tabs?Expand=teamsApp&Filter=displayName eq '$($DisplayName.Replace("'","''"))'"
+    $Url = Get-MSGraphUrlForCurrentEnvironment -RelativeUrl "teams/$TeamID/channels/$ChannelId/tabs?Expand=teamsApp&Filter=displayName eq '$($DisplayName.Replace("'","''"))'" -UseBeta
     Write-Verbose -Message "Retrieving tab with TeamsID {$TeamID} ChannelID {$ChannelID} DisplayName {$DisplayName}"
     Write-Verbose -Message "GET request to {$Url}"
     $response = Invoke-MgGraphRequest -Method GET `

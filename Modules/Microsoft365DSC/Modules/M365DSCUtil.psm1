@@ -3044,3 +3044,30 @@ function Test-M365DSCObjectHasProperty
     }
     return $false
 }
+
+function Get-MSGraphUrlForCurrentEnvironment
+{
+    [CmdletBinding()]
+    [OutputType([String])]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [String]
+        $RelativeUrl,
+
+        [Switch]
+        $UseBeta
+    )
+
+    $graphEndpoint = Get-AzureEnvironmentEndpoint -AzureCloudEnvironmentName $Global:appIdentityParams.AzureCloudEnvironmentName -EndpointName MsGraphEndpointResourceId
+    $schema = 'v1.0'
+    $graphEndpoint = $graphEndpoint.TrimEnd('/')
+    if ($UseBeta)
+    {
+        $schema = 'beta'
+    }
+
+    $relUrlToUse = $RelativeUrl.TrimStart('/')
+
+    return "$graphEndpoint/$schema/$relUrlToUse"
+}
