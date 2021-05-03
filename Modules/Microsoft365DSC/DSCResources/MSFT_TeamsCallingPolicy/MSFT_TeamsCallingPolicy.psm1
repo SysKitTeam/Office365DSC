@@ -70,7 +70,6 @@ function Get-TargetResource
 
         [Parameter()]
         [System.String]
-        [ValidateSet('DisabledUserOverride', 'Disabled')]
         $LiveCaptionsEnabledTypeForCalling = 'DisabledUserOverride',
 
         [Parameter()]
@@ -112,26 +111,26 @@ function Get-TargetResource
 
     try
     {
-    $policy = Get-CsTeamsCallingPolicy -Identity $Identity -ErrorAction 'SilentlyContinue'
+        $policy = Get-CsTeamsCallingPolicy -Identity $Identity -ErrorAction 'SilentlyContinue'
 
-    if ($null -eq $policy)
-    {
-        Write-Verbose -Message "Could not find Teams Calling Policy ${$Identity}"
+        if ($null -eq $policy)
+        {
+            Write-Verbose -Message "Could not find Teams Calling Policy ${$Identity}"
             return $nullReturn
-    }
-    Write-Verbose -Message "Found Teams Calling Policy {$Identity}"
-    return @{
-        Identity                   = $Identity
-        AllowPrivateCalling        = $policy.AllowPrivateCalling
+        }
+        Write-Verbose -Message "Found Teams Calling Policy {$Identity}"
+        return @{
+            Identity                          = $Identity
+            AllowPrivateCalling               = $policy.AllowPrivateCalling
             AllowWebPSTNCalling               = $policy.AllowWebPSTNCalling
-        AllowVoicemail             = $policy.AllowVoicemail
-        AllowCallGroups            = $policy.AllowCallGroups
-        AllowDelegation            = $policy.AllowDelegation
-        AllowCallForwardingToUser  = $policy.AllowCallForwardingToUser
-        AllowCallForwardingToPhone = $policy.AllowCallForwardingToPhone
+            AllowVoicemail                    = $policy.AllowVoicemail
+            AllowCallGroups                   = $policy.AllowCallGroups
+            AllowDelegation                   = $policy.AllowDelegation
+            AllowCallForwardingToUser         = $policy.AllowCallForwardingToUser
+            AllowCallForwardingToPhone        = $policy.AllowCallForwardingToPhone
             Description                       = $policy.Description
-        PreventTollBypass          = $policy.PreventTollBypass
-        BusyOnBusyEnabledType      = $policy.BusyOnBusyEnabledType
+            PreventTollBypass                 = $policy.PreventTollBypass
+            BusyOnBusyEnabledType             = $policy.BusyOnBusyEnabledType
             MusicOnHoldEnabledType            = $policy.MusicOnHoldEnabledType
             SafeTransferEnabled               = $policy.SafeTransferEnabled
             AllowCloudRecordingForCalls       = $policy.AllowCloudRecordingForCalls
@@ -139,9 +138,9 @@ function Get-TargetResource
             LiveCaptionsEnabledTypeForCalling = $policy.LiveCaptionsEnabledTypeForCalling
             AutoAnswerEnabledType             = $policy.AutoAnswerEnabledType
             SpamFilteringEnabledType          = $policy.SpamFilteringEnabledType
-        Ensure                     = 'Present'
-        GlobalAdminAccount         = $GlobalAdminAccount
-    }
+            Ensure                            = 'Present'
+            GlobalAdminAccount                = $GlobalAdminAccount
+        }
     }
     catch
     {
@@ -240,7 +239,6 @@ function Set-TargetResource
 
         [Parameter()]
         [System.String]
-        [ValidateSet('DisabledUserOverride', 'Disabled')]
         $LiveCaptionsEnabledTypeForCalling = 'DisabledUserOverride',
 
         [Parameter()]
@@ -374,7 +372,6 @@ function Test-TargetResource
 
         [Parameter()]
         [System.String]
-        [ValidateSet('DisabledUserOverride', 'Disabled')]
         $LiveCaptionsEnabledTypeForCalling = 'DisabledUserOverride',
 
         [Parameter()]
@@ -449,29 +446,29 @@ function Export-TargetResource
         -InboundParameters $PSBoundParameters
     try
     {
-    $i = 1
-    [array]$policies = Get-CsTeamsCallingPolicy
-    $content = ''
+        $i = 1
+        [array]$policies = Get-CsTeamsCallingPolicy
+        $content = ''
         Write-Host "`r`n" -NoNewline
-    foreach ($policy in $policies)
-    {
+        foreach ($policy in $policies)
+        {
             Write-Host "    |---[$i/$($policies.Length)] $($policy.Identity)" -NoNewline
-        $params = @{
-            Identity           = $policy.Identity
-            Ensure             = 'Present'
-            GlobalAdminAccount = $GlobalAdminAccount
-        }
-        $result = Get-TargetResource @params
-        $result.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
+            $params = @{
+                Identity           = $policy.Identity
+                Ensure             = 'Present'
+                GlobalAdminAccount = $GlobalAdminAccount
+            }
+            $result = Get-TargetResource @params
+            $result.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
             $content += "        TeamsCallingPolicy " + (New-Guid).ToString() + "`r`n"
-        $content += "        {`r`n"
-        $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot
-        $content += Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
-        $content += "        }`r`n"
-        Write-Host $Global:M365DSCEmojiGreenCheckMark
-        $i++
-    }
-    return $content
+            $content += "        {`r`n"
+            $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot
+            $content += Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
+            $content += "        }`r`n"
+            Write-Host $Global:M365DSCEmojiGreenCheckMark
+            $i++
+        }
+        return $content
     }
     catch
     {
