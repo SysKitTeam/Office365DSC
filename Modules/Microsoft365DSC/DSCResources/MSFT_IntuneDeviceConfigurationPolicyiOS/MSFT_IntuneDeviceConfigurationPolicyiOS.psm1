@@ -1824,14 +1824,31 @@ function Export-TargetResource
             }
             $result = Get-TargetResource @params
             $result.GlobalAdminAccount = Resolve-Credentials -UserName "globaladmin"
+            $result.AppsVisibilityList = Convert-ObjectArrayToSimpleJsonStringArray -Objects $result.AppsVisibilityList
+            $result.CompliantAppsList = Convert-ObjectArrayToSimpleJsonStringArray -Objects $result.CompliantAppsList
+            $result.EmailInDomainSuffixes = Convert-ObjectArrayToSimpleJsonStringArray -Objects $result.EmailInDomainSuffixes
+            $result.SafariManagedDomains = Convert-ObjectArrayToSimpleJsonStringArray -Objects $result.SafariManagedDomains
+            $result.SafariPasswordAutoFillDomains = Convert-ObjectArrayToSimpleJsonStringArray -Objects $result.SafariPasswordAutoFillDomains
+            $result.MediaContentRatingAustralia = ConvertTo-Json $result.MediaContentRatingAustralia -Compress
+            $result.MediaContentRatingCanada = ConvertTo-Json $result.MediaContentRatingCanada -Compress
+            $result.MediaContentRatingFrance = ConvertTo-Json $result.MediaContentRatingFrance -Compress
+            $result.MediaContentRatingGermany = ConvertTo-Json $result.MediaContentRatingGermany -Compress
+            $result.MediaContentRatingIreland = ConvertTo-Json $result.MediaContentRatingIreland -Compress
+            $result.MediaContentRatingJapan = ConvertTo-Json $result.MediaContentRatingJapan -Compress
+            $result.MediaContentRatingNewZealand = ConvertTo-Json $result.MediaContentRatingNewZealand -Compress
+            $result.MediaContentRatingUnitedKingdom = ConvertTo-Json $result.MediaContentRatingUnitedKingdom -Compress
+            $result.MediaContentRatingUnitedStates = ConvertTo-Json $result.MediaContentRatingUnitedStates -Compress
+
+
             $content += "        IntuneDeviceConfigurationPolicyiOS " + (New-Guid).ToString() + "`r`n"
             $content += "        {`r`n"
-            $currentDSCBlock = Get-DSCBlock -Params $result -ModulePath $PSScriptRoot
+            $currentDSCBlock = Get-DSCBlockEx -Params $result -ModulePath $PSScriptRoot
             $content += Convert-DSCStringParamToVariable -DSCBlock $currentDSCBlock -ParameterName "GlobalAdminAccount"
             $content += "        }`r`n"
             $i++
             Write-Host $Global:M365DSCEmojiGreenCheckMark
         }
+
         return $content
     }
     catch

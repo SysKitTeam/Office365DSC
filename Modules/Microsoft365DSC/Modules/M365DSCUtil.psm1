@@ -3071,3 +3071,50 @@ function Get-MSGraphUrlForCurrentEnvironment
 
     return "$graphEndpoint/$schema/$relUrlToUse"
 }
+
+function Convert-ObjectArrayToSimpleJsonString
+{
+    <#
+        .SYNOPSIS
+            A workaround function to use for nested complex objects when exporting resources
+    #>
+    [CmdletBinding()]
+    [OutputType([String])]
+    param
+    (
+        [Parameter()]
+        [object[]]
+        $Objects
+    )
+
+    if (!$objects -or $objects.Count -eq 0)
+    {
+        return ""
+    }
+
+    return ConvertTo-Json $objects -Compress
+}
+
+
+function Convert-ObjectArrayToSimpleJsonStringArray
+{
+    <#
+        .SYNOPSIS
+            A workaround function to use for nested complex objects when exporting resources
+    #>
+    [CmdletBinding()]
+    [OutputType([String[]])]
+    param
+    (
+        [Parameter()]
+        [object[]]
+        $Objects
+    )
+
+    if (!$objects -or $objects.Count -eq 0)
+    {
+        return @()
+    }
+
+    return $objects | ConvertTo-Json -Compress
+}

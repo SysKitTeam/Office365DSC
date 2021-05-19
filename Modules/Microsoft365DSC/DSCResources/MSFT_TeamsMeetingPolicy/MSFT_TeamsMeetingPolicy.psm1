@@ -30,7 +30,6 @@ function Get-TargetResource
         $MeetingChatEnabledType = "Enabled",
 
         [Parameter()]
-        [ValidateSet("Disabled", "DisabledUserOverride")]
         [System.String]
         $LiveCaptionsEnabledType = "DisabledUserOverride",
 
@@ -323,7 +322,6 @@ function Set-TargetResource
         $MeetingChatEnabledType = "Enabled",
 
         [Parameter()]
-        [ValidateSet("Disabled", "DisabledUserOverride")]
         [System.String]
         $LiveCaptionsEnabledType = "DisabledUserOverride",
 
@@ -572,7 +570,6 @@ function Test-TargetResource
         $MeetingChatEnabledType = "Enabled",
 
         [Parameter()]
-        [ValidateSet("Disabled", "DisabledUserOverride")]
         [System.String]
         $LiveCaptionsEnabledType = "DisabledUserOverride",
 

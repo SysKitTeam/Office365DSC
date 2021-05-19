@@ -59,7 +59,6 @@ function Get-TargetResource
         $TlsDomain = @(),
 
         [Parameter()]
-        [ValidateSet('EncryptionOnly', 'CertificateValidation', 'DomainValidation')]
         [System.String]
         $TlsSettings,
 
@@ -129,46 +128,46 @@ function Get-TargetResource
     {
         $OutBoundConnectors = Get-OutBoundConnector -ErrorAction Stop
 
-    $OutBoundConnector = $OutBoundConnectors | Where-Object -FilterScript { $_.Identity -eq $Identity }
-    if ($null -eq $OutBoundConnector)
-    {
-        Write-Verbose -Message "OutBoundConnector $($Identity) does not exist."
-            return $nullReturn
-    }
-    else
-    {
-        $ConnectorSourceValue = $OutBoundConnector.ConnectorSource
-        if ($ConnectorSourceValue -eq 'AdminUI' -or `
-            [System.String]::IsNullOrEmpty($ConnectorSourceValue))
+        $OutBoundConnector = $OutBoundConnectors | Where-Object -FilterScript { $_.Identity -eq $Identity }
+        if ($null -eq $OutBoundConnector)
         {
-            $ConnectorSourceValue = 'Default'
+            Write-Verbose -Message "OutBoundConnector $($Identity) does not exist."
+            return $nullReturn
         }
+        else
+        {
+            $ConnectorSourceValue = $OutBoundConnector.ConnectorSource
+            if ($ConnectorSourceValue -eq 'AdminUI' -or `
+                    [System.String]::IsNullOrEmpty($ConnectorSourceValue))
+            {
+                $ConnectorSourceValue = 'Default'
+            }
 
-        $result = @{
-            Identity                      = $Identity
-            AllAcceptedDomains            = $OutBoundConnector.AllAcceptedDomains
-            CloudServicesMailEnabled      = $OutBoundConnector.CloudServicesMailEnabled
-            Comment                       = $OutBoundConnector.Comment
-            ConnectorSource               = $ConnectorSourceValue
-            ConnectorType                 = $OutBoundConnector.ConnectorType
-            Enabled                       = $OutBoundConnector.Enabled
-            IsTransportRuleScoped         = $OutBoundConnector.IsTransportRuleScoped
-            RecipientDomains              = $OutBoundConnector.RecipientDomains
-            RouteAllMessagesViaOnPremises = $OutBoundConnector.RouteAllMessagesViaOnPremises
-            SmartHosts                    = $OutBoundConnector.SmartHosts
-            TestMode                      = $OutBoundConnector.TestMode
-            TlsDomain                     = $OutBoundConnector.TlsDomain
-            TlsSettings                   = $OutBoundConnector.TlsSettings
-            UseMxRecord                   = $OutBoundConnector.UseMxRecord
-            ValidationRecipients          = $OutBoundConnector.ValidationRecipients
-            GlobalAdminAccount            = $GlobalAdminAccount
-            Ensure                        = 'Present'
+            $result = @{
+                Identity                      = $Identity
+                AllAcceptedDomains            = $OutBoundConnector.AllAcceptedDomains
+                CloudServicesMailEnabled      = $OutBoundConnector.CloudServicesMailEnabled
+                Comment                       = $OutBoundConnector.Comment
+                ConnectorSource               = $ConnectorSourceValue
+                ConnectorType                 = $OutBoundConnector.ConnectorType
+                Enabled                       = $OutBoundConnector.Enabled
+                IsTransportRuleScoped         = $OutBoundConnector.IsTransportRuleScoped
+                RecipientDomains              = $OutBoundConnector.RecipientDomains
+                RouteAllMessagesViaOnPremises = $OutBoundConnector.RouteAllMessagesViaOnPremises
+                SmartHosts                    = $OutBoundConnector.SmartHosts
+                TestMode                      = $OutBoundConnector.TestMode
+                TlsDomain                     = $OutBoundConnector.TlsDomain
+                TlsSettings                   = $OutBoundConnector.TlsSettings
+                UseMxRecord                   = $OutBoundConnector.UseMxRecord
+                ValidationRecipients          = $OutBoundConnector.ValidationRecipients
+                GlobalAdminAccount            = $GlobalAdminAccount
+                Ensure                        = 'Present'
+            }
+
+            Write-Verbose -Message "Found OutBoundConnector $($Identity)"
+            Write-Verbose -Message "Get-TargetResource Result: `n $(Convert-M365DscHashtableToString -Hashtable $result)"
+            return $result
         }
-
-        Write-Verbose -Message "Found OutBoundConnector $($Identity)"
-        Write-Verbose -Message "Get-TargetResource Result: `n $(Convert-M365DscHashtableToString -Hashtable $result)"
-        return $result
-    }
     }
     catch
     {
@@ -257,7 +256,6 @@ function Set-TargetResource
         $TlsDomain = @(),
 
         [Parameter()]
-        [ValidateSet('EncryptionOnly', 'CertificateValidation', 'DomainValidation')]
         [System.String]
         $TlsSettings,
 
@@ -401,7 +399,6 @@ function Test-TargetResource
         $TlsDomain = @(),
 
         [Parameter()]
-        [ValidateSet('EncryptionOnly', 'CertificateValidation', 'DomainValidation')]
         [System.String]
         $TlsSettings,
 
@@ -519,41 +516,41 @@ function Export-TargetResource
     try
     {
         [array]$OutboundConnectors = Get-OutboundConnector -ErrorAction Stop
-    if ($OutBoundConnectors.Length -eq 0)
-    {
-        Write-Host $Global:M365DSCEmojiGreenCheckMark
-    }
-    else
-    {
+        if ($OutBoundConnectors.Length -eq 0)
+        {
+            Write-Host $Global:M365DSCEmojiGreenCheckMark
+        }
+        else
+        {
             Write-Host "`r`n" -NoNewline
-    }
-    $dscContent = ""
-    $i = 1
-    foreach ($OutboundConnector in $OutboundConnectors)
-    {
+        }
+        $dscContent = ""
+        $i = 1
+        foreach ($OutboundConnector in $OutboundConnectors)
+        {
             Write-Host "    |---[$i/$($OutboundConnectors.Length)] $($OutboundConnector.Identity)" -NoNewline
 
-        $Params = @{
-            Identity              = $OutboundConnector.Identity
-            GlobalAdminAccount    = $GlobalAdminAccount
-            ApplicationId         = $ApplicationId
-            TenantId              = $TenantId
-            CertificateThumbprint = $CertificateThumbprint
-            CertificatePassword   = $CertificatePassword
-            CertificatePath       = $CertificatePath
+            $Params = @{
+                Identity              = $OutboundConnector.Identity
+                GlobalAdminAccount    = $GlobalAdminAccount
+                ApplicationId         = $ApplicationId
+                TenantId              = $TenantId
+                CertificateThumbprint = $CertificateThumbprint
+                CertificatePassword   = $CertificatePassword
+                CertificatePath       = $CertificatePath
+            }
+            $Results = Get-TargetResource @Params
+            $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
+                -Results $Results
+            $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
+                -ConnectionMode $ConnectionMode `
+                -ModulePath $PSScriptRoot `
+                -Results $Results `
+                -GlobalAdminAccount $GlobalAdminAccount
+            Write-Host $Global:M365DSCEmojiGreenCheckMark
+            $i++
         }
-        $Results = Get-TargetResource @Params
-        $Results = Update-M365DSCExportAuthenticationResults -ConnectionMode $ConnectionMode `
-            -Results $Results
-        $dscContent += Get-M365DSCExportContentForResource -ResourceName $ResourceName `
-            -ConnectionMode $ConnectionMode `
-            -ModulePath $PSScriptRoot `
-            -Results $Results `
-            -GlobalAdminAccount $GlobalAdminAccount
-        Write-Host $Global:M365DSCEmojiGreenCheckMark
-        $i++
-    }
-    return $dscContent
+        return $dscContent
     }
     catch
     {

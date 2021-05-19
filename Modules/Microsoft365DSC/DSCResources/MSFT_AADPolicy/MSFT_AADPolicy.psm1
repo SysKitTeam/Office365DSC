@@ -71,7 +71,7 @@ function Get-TargetResource
         {
             if ($null -ne $Id)
             {
-                $Policy = Get-AzureADPolicy -ID $Id
+                $Policy = Get-AzureADPolicy -Id $Id
             }
         }
         catch
@@ -100,7 +100,6 @@ function Get-TargetResource
             Write-Verbose "Found existing AzureAD Policy {$($Policy.DisplayName)}"
             $Result = @{
                 Id                    = $Policy.Id
-                OdataType             = $Policy.OdataType
                 AlternativeIdentifier = $Policy.AlternativeIdentifier
                 Definition            = $Policy.Definition
                 DisplayName           = $Policy.DisplayName
@@ -215,7 +214,7 @@ function Set-TargetResource
     elseif ($Ensure -eq 'Absent' -and $CurrentAADPolicy.Ensure -eq 'Present')
     {
         Write-Verbose -Message "Removing AzureAD Policy {$Displayname)}"
-        Remove-AzureADPolicy -ID $currentAADPolicy.ID
+        Remove-AzureADPolicy -Id $currentAADPolicy.ID
     }
 }
 
@@ -346,14 +345,15 @@ function Export-TargetResource
             }
             $Results = Get-TargetResource @Params
 
+            # Trace: commented this out because we handle this on a different level
             # Fix quotes inside the Definition's JSON;
-            $NewDefinition = @()
-            foreach ($item in $Results.Definition)
-            {
-                $fixedContent = $item.Replace('"', '`"')
-                $NewDefinition += $fixedContent
-            }
-            $results.Definition = $NewDefinition
+            # $NewDefinition = @()
+            # foreach ($item in $Results.Definition)
+            # {
+            #     $fixedContent = $item.Replace('"', '`"')
+            #     $NewDefinition += $fixedContent
+            # }
+            # $results.Definition = $NewDefinition
 
             if ($Results.Ensure -eq 'Present')
             {
