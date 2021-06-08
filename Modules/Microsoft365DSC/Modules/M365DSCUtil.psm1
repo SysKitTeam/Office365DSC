@@ -154,19 +154,17 @@ function Get-TeamEnabledOffice365Groups
         $endpoint = Get-AzureEnvironmentEndpoint -AzureCloudEnvironmentName $Global:appIdentityParams.AzureCloudEnvironmentName -EndpointName "MsGraphEndpointResourceId"
         $accessToken = Get-AppIdentityAccessToken $endpoint
 
-        $clientFactory = [Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpClientFactory]::new()
+        $clientFactory = [Microsoft.TeamsCmdlets.Powershell.Connect.Common.HttpClientFactory]::new()
         $httpClient = $clientFactory.Create("Bearer $accessToken", "Get-TeamTraceCustom")
 
-        $requestUri = [Uri]::new("$endpoint/v1.0/groups?$filter=groupTypes/any(c:c+eq+'Unified')&`$select=id,resourceProvisioningOptions,displayName,description,visibility,mailnickname,classification")
+        # filtering by resourceProvisioningOptions is not supported in v1.0
+        # the funny thing is that the official module is also using the beta endpoint in the background
+        $requestUri = [Uri]::new("$endpoint/beta/groups?`$filter=resourceProvisioningOptions/Any(x:x eq 'Team')&`$select=id,resourceProvisioningOptions,displayName,description,visibility,mailnickname,classification")
         Invoke-WithTransientErrorExponentialRetry -ScriptBlock {
             $accessToken = Get-AppIdentityAccessToken $endpoint
             $httpClient.DefaultRequestHeaders.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::Parse("Bearer $accessToken");
             $allTeams.AddRange([Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpUtilities].GetMethod("GetAll").MakeGenericMethod([Microsoft.TeamsCmdlets.PowerShell.Custom.Model.Team]).Invoke($null, @($httpClient, $requestUri)))
             Write-Verbose "Retrieved all teams"
-        }
-
-        $allTeams = $allTeams | Where-Object {
-            $_.ResourceProvisioningOptions.Contains("Team")
         }
     }
     finally
@@ -206,7 +204,7 @@ function Get-AllTeamsCached
     # this is actually the only way to get the team details, but when running in parallel without any limits
     # throttling is bound to come up and it is NOT handled at all
     # Get-Team
-    $clientFactory = [Microsoft.TeamsCmdlets.PowerShell.Custom.Utils.HttpClientFactory]::new()
+    $clientFactory = [Microsoft.TeamsCmdlets.Powershell.Connect.Common.HttpClientFactory]::new()
     $accessToken = Get-AppIdentityAccessToken $endpoint
     $allTeams = Get-TeamEnabledOffice365Groups
 
